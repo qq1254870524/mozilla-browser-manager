@@ -455,6 +455,21 @@ def launch(
                 ),
             )
         sub = (prof.meta or {}).get("sub") or "default"
+        # Resolve empty/default-with-no-nodes to active subscription (prevents DIRECT-only core)
+        try:
+            from mozilla_manager.network import node_store as _ns
+            clash = _ns.load_clash(sub) or {}
+            nprox = len([x for x in (clash.get("proxies") or []) if isinstance(x, dict) and x.get("name")])
+            if nprox == 0:
+                active = _ns.get_active()
+                if active:
+                    sub = active
+                    meta_fix = dict(prof.meta or {})
+                    if meta_fix.get("sub") != sub:
+                        meta_fix["sub"] = sub
+                        prof = store.update(profile_id, meta=meta_fix)
+        except Exception:
+            pass
         # v6: TLS persona client-fingerprint for mihomo outbounds
         cfp = None
         try:
@@ -464,24 +479,52 @@ def launch(
         except Exception:
             cfp = (prof.meta or {}).get("tls_client_fingerprint") or "chrome"
         started = mihomo_svc.start(port, sub=sub, node=prof.proxy.node_name or "", client_fingerprint=cfp)
+        # If port is foreign-occupied or mixed-port failed, allocate a free port and retry once.
+        if not (started or {}).get("ok"):
+            try:
+                new_port = allocate_port(f"{profile_id}-retry", base=17800)
+                # ensure different
+                if new_port == port:
+                    new_port = allocate_port(f"{profile_id}-retry2", base=17600)
+                prof = store.update(
+                    profile_id,
+                    proxy=ProxyConfig(
+                        mode="mihomo",
+                        mihomo_port=new_port,
+                        node_name=prof.proxy.node_name,
+                        browser_only=prof.proxy.browser_only,
+                    ),
+                )
+                port = new_port
+                started = mihomo_svc.start(
+                    port, sub=sub, node=prof.proxy.node_name or "", client_fingerprint=cfp
+                )
+            except Exception as _e:
+                started = {"ok": False, "error": f"mihomo retry failed: {_e}", "prev": started}
+        if not (started or {}).get("ok"):
+            return {
+                "ok": False,
+                "profile_id": profile_id,
+                "message": f"mihomo failed to expose mixed-port: {(started or {}).get('error')}",
+                "mihomo": started,
+            }
         # Warm mixed-port briefly so launch-time egress/rebind does not race a half-open listener.
         try:
             import socket, time as _t
-            if (started or {}).get("ok", True):
-                for _ in range(8):
-                    s = socket.socket()
-                    s.settimeout(0.25)
+            for _ in range(10):
+                s = socket.socket()
+                s.settimeout(0.25)
+                try:
+                    s.connect(("127.0.0.1", int(port)))
+                    s.close()
+                    _t.sleep(0.15)
+                    break
+                except Exception:
                     try:
-                        s.connect(("127.0.0.1", int(port)))
                         s.close()
-                        _t.sleep(0.15)  # allow outbound dialer init
-                        break
                     except Exception:
-                        try:
-                            s.close()
-                        except Exception:
-                            pass
-                        _t.sleep(0.2)
+                        pass
+                    _t.sleep(0.2)
         except Exception:
             pass
 
@@ -557,7 +600,7 @@ def stop(profile_id: str) -> dict[str, Any]:
         try:
             port = getattr(prof.proxy, "mihomo_port", None)
             if port and getattr(prof.proxy, "mode", None) == "mihomo":
-                mihomo_stopped = mihomo_svc.stop(int(port))
+                mihomo_stopped = mihomo_svc.stop(int(port), reason="profiles.stop", profile_id=profile_id)
         except Exception as e:
             mihomo_stopped = {"ok": False, "error": str(e)}
     except KeyError:

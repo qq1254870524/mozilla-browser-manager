@@ -15,6 +15,121 @@ from ..paths import MIHOMO_DIR, NODES_DIR, ensure_layout, p, safe_resolve
 from . import node_store
 
 _PROCS: dict[int, subprocess.Popen] = {}  # port -> proc
+_DEATH_WATCH_STARTED = False
+_DEATH_WATCH_LOCK = __import__("threading").Lock()
+_INTENTIONAL_STOPS: set[int] = set()  # ports we are actively stopping
+
+
+def _audit_death(port: int, proc: "subprocess.Popen | None", extra: dict | None = None) -> None:
+    """Log unexpected mihomo process exit (not via stop_mihomo)."""
+    try:
+        from mozilla_manager.paths import p as root_p, ensure_layout, safe_resolve
+        ensure_layout()
+        logp = safe_resolve(root_p("logs", "mihomo-death-audit.log"))
+        import time as _time
+        rc = None
+        pid = None
+        try:
+            if proc is not None:
+                pid = proc.pid
+                rc = proc.poll()
+        except Exception:
+            pass
+        line = {
+            "t": _time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "port": int(port),
+            "pid": pid,
+            "returncode": rc,
+            "extra": extra or {},
+        }
+        with open(logp, "a", encoding="utf-8") as af:
+            af.write(json.dumps(line, ensure_ascii=False) + "\n")
+        try:
+            from mozilla_manager import db
+            db.audit("mihomo_unexpected_exit", None, line)
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+
+def _restart_mihomo_for_live_port(port: int) -> dict[str, Any]:
+    """If a live browser profile still owns this port, bring mihomo back."""
+    try:
+        from mozilla_manager.store import ProfileStore
+        from mozilla_manager.runtime_registry import list_running
+    except Exception as e:
+        return {"ok": False, "error": f"import: {e}"}
+    try:
+        running = list_running() or {}
+    except Exception:
+        running = {}
+    store = ProfileStore()
+    owner = None
+    for pid in list(running.keys()):
+        try:
+            prof = store.get(pid)
+        except Exception:
+            continue
+        if getattr(prof.proxy, "mode", None) != "mihomo":
+            continue
+        if int(getattr(prof.proxy, "mihomo_port", 0) or 0) != int(port):
+            continue
+        owner = prof
+        break
+    if owner is None:
+        return {"ok": False, "error": "no live owner", "port": port}
+    sub = (owner.meta or {}).get("sub") or "default"
+    node = owner.proxy.node_name or ""
+    cfp = (owner.meta or {}).get("tls_client_fingerprint") or "chrome"
+    # clear intentional mark so start can proceed
+    _INTENTIONAL_STOPS.discard(int(port))
+    r = start_mihomo(int(port), subscription_name=sub, node_name=node, client_fingerprint=cfp)
+    try:
+        from mozilla_manager import db
+        db.audit("mihomo_death_autorestart", owner.id, {"port": port, "result": r})
+    except Exception:
+        pass
+    return {"ok": bool((r or {}).get("ok")), "port": port, "profile_id": owner.id, "start": r}
+
+
+def _ensure_mihomo_death_watch(interval: float = 1.0) -> None:
+    """Watch _PROCS for exits that did not go through stop_mihomo; auto-restart if needed."""
+    global _DEATH_WATCH_STARTED
+    with _DEATH_WATCH_LOCK:
+        if _DEATH_WATCH_STARTED:
+            return
+        _DEATH_WATCH_STARTED = True
+
+    def _loop() -> None:
+        import time
+        while True:
+            try:
+                for port, proc in list(_PROCS.items()):
+                    try:
+                        rc = proc.poll()
+                    except Exception:
+                        rc = None
+                    if rc is None:
+                        continue
+                    # process exited
+                    intentional = int(port) in _INTENTIONAL_STOPS
+                    _PROCS.pop(port, None)
+                    if intentional:
+                        _INTENTIONAL_STOPS.discard(int(port))
+                        continue
+                    _audit_death(port, proc, {"note": "poll_nonzero_without_stop"})
+                    try:
+                        _restart_mihomo_for_live_port(int(port))
+                    except Exception as e:
+                        _audit_death(port, proc, {"restart_error": str(e)})
+            except Exception:
+                pass
+            time.sleep(interval)
+
+    import threading
+    threading.Thread(target=_loop, name="mm-mihomo-death-watch", daemon=True).start()
+
 
 
 def mihomo_binary() -> Path:
@@ -23,10 +138,69 @@ def mihomo_binary() -> Path:
     return MIHOMO_DIR / name
 
 
+def _port_free(port: int, host: str = "127.0.0.1") -> bool:
+    """True if we can bind TCP on host:port (port is free)."""
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind((host, int(port)))
+        return True
+    except OSError:
+        return False
+    finally:
+        try:
+            s.close()
+        except Exception:
+            pass
+
+
+def _port_listening(port: int, host: str = "127.0.0.1", timeout: float = 0.25) -> bool:
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(timeout)
+    try:
+        s.connect((host, int(port)))
+        return True
+    except Exception:
+        return False
+    finally:
+        try:
+            s.close()
+        except Exception:
+            pass
+
+
 def allocate_port(profile_id: str, base: int = 17800) -> int:
-    """Stable-ish port from profile id hash in 17800-17999."""
-    h = sum(ord(c) for c in profile_id)
-    return base + (h % 200)
+    """Pick a free mixed-port in [base, base+200).
+
+    Prefer stable hash slot when free; otherwise scan for the first free port.
+    NEVER return a port already bound by another process (CC2/other mihomo) —
+    that caused Mixed-port bind failure while start() still looked "ok", and the
+    browser hit net::ERR_PROXY_CONNECTION_FAILED / total offline.
+    """
+    import socket
+    h = sum(ord(c) for c in (profile_id or "x"))
+    preferred = base + (h % 200)
+    candidates = [preferred] + [base + ((h + i) % 200) for i in range(1, 200)]
+    # also avoid external-controller (+1000) and dns (+2000) collisions roughly
+    for port in candidates:
+        if port < 1024 or port > 60000:
+            continue
+        # mixed + controller + dns must be free-ish
+        if not _port_free(port):
+            continue
+        if not _port_free(port + 1000):
+            continue
+        if not _port_free(port + 2000):
+            continue
+        return int(port)
+    # last resort: ephemeral bind
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = int(s.getsockname()[1])
+    s.close()
+    return port
 
 
 
@@ -159,10 +333,38 @@ def write_profile_config(port: int, subscription_name: str = "default", node_nam
         rt = None
 
     data = node_store.load_clash(subscription_name)
-    if not data:
+    # Empty "default" (or missing sub) used to produce DIRECT-only configs while UI
+    # still showed nodes — fall back to active subscription with real proxies.
+    def _proxy_count(d):
+        try:
+            return len([x for x in (d or {}).get("proxies") or [] if isinstance(x, dict) and x.get("name")])
+        except Exception:
+            return 0
+
+    if not data or _proxy_count(data) == 0:
         sub_yaml = NODES_DIR / f"sub_{subscription_name}.yaml"
         if sub_yaml.exists():
-            data = yaml.safe_load(sub_yaml.read_text(encoding="utf-8", errors="ignore")) or {}
+            try:
+                data = yaml.safe_load(sub_yaml.read_text(encoding="utf-8", errors="ignore")) or {}
+            except Exception:
+                data = data or {}
+    if (not data or _proxy_count(data) == 0) and subscription_name not in ("", None):
+        try:
+            active = node_store.get_active()
+            if active and active != subscription_name:
+                data = node_store.load_clash(active) or data
+        except Exception:
+            pass
+    if not isinstance(data, dict) or not data or _proxy_count(data) == 0:
+        # last resort: any sub with proxies
+        try:
+            for name in node_store.list_sub_names() or []:
+                cand = node_store.load_clash(name)
+                if _proxy_count(cand) > 0:
+                    data = cand
+                    break
+        except Exception:
+            pass
     if not isinstance(data, dict) or not data:
         data = {
             "proxies": [],
@@ -262,39 +464,77 @@ def start_mihomo(port: int, subscription_name: str = "default", node_name: str |
         except Exception:
             pass
     if occupied:
-        # Try hot-switch first without kill (keeps browser sockets if same port)
+        # Only reuse if THIS port is our mihomo (pid file / cmdline marker). Foreign
+        # listeners (other apps on 178xx) must NOT be treated as success — browser
+        # would speak SOCKS to the wrong process → ERR_PROXY_CONNECTION_FAILED.
+        ours = False
         try:
-            switched = _apply_selected_node(port, node_name)
-            if switched.get("ok"):
-                # adopt unknown pid if possible
-                return {
-                    "ok": True,
-                    "port": port,
-                    "reused": True,
-                    "orphan_reused": True,
-                    "cfg": str(cfg),
-                    "switched": switched,
-                    "node": node_name,
-                    "note": "orphan mihomo hot-switched; full restart skipped",
-                }
+            for item in list_live_mihomo_processes():
+                if int(item.get("port") or 0) == int(port):
+                    ours = True
+                    break
         except Exception:
-            pass
-        stop_mihomo(port)
-        time.sleep(0.25)
+            ours = False
+        if not ours:
+            pid_file = NODES_DIR / f"mihomo-{port}.pid"
+            if pid_file.exists():
+                try:
+                    # pid file alone is weak; still try stop our recorded pid only
+                    ours = True
+                except Exception:
+                    pass
+        if ours:
+            try:
+                switched = _apply_selected_node(port, node_name)
+                if switched.get("ok") or _port_listening(port):
+                    return {
+                        "ok": True,
+                        "port": port,
+                        "reused": True,
+                        "orphan_reused": True,
+                        "cfg": str(cfg),
+                        "switched": switched,
+                        "node": node_name,
+                        "note": "our mihomo hot-switched/reused",
+                    }
+            except Exception:
+                pass
+            stop_mihomo(port, reason="start_reclaim_our_occupied")
+            time.sleep(0.35)
+        else:
+            # Port held by foreign process — caller should allocate a free port.
+            return {
+                "ok": False,
+                "port": port,
+                "error": f"port {port} occupied by foreign process (not Mozilla mihomo). re-allocate.",
+                "foreign_port": True,
+            }
 
     log = safe_resolve(p("logs", f"mihomo-{port}.log"))
     f = open(log, "a", encoding="utf-8")
-    creationflags = 0
+    popen_kwargs: dict[str, Any] = {
+        "cwd": str(MIHOMO_DIR),
+        "stdout": f,
+        "stderr": subprocess.STDOUT,
+    }
     if platform.system() == "Windows":
-        creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        # Independent process group so client/console signals do not kill egress.
+        popen_kwargs["creationflags"] = (
+            getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            | getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        )
+    else:
+        # New session: survive parent SIGHUP / shell exit (WSL/dev & nohup tests).
+        popen_kwargs["start_new_session"] = True
     proc = subprocess.Popen(
         [str(bin_path), "-f", str(cfg)],
-        cwd=str(MIHOMO_DIR),
-        stdout=f,
-        stderr=subprocess.STDOUT,
-        creationflags=creationflags,
+        **popen_kwargs,
     )
     _PROCS[port] = proc
+    try:
+        _ensure_mihomo_death_watch()
+    except Exception:
+        pass
     pid_file = safe_resolve(NODES_DIR / f"mihomo-{port}.pid")
     pid_file.write_text(str(proc.pid), encoding="utf-8")
     for _ in range(12):
@@ -314,13 +554,38 @@ def start_mihomo(port: int, subscription_name: str = "default", node_name: str |
                 pass
     alive = proc.poll() is None
     err = None
+    mixed_up = False
     if not alive:
         try:
             err = log.read_text(encoding="utf-8", errors="ignore")[-800:]
         except Exception:
             err = "process exited immediately; see log"
+    else:
+        # CRITICAL: process can be alive while Mixed-port failed ("address already in use").
+        for _ in range(15):
+            if _port_listening(port):
+                mixed_up = True
+                break
+            if proc.poll() is not None:
+                break
+            time.sleep(0.2)
+        if not mixed_up:
+            try:
+                tail = log.read_text(encoding="utf-8", errors="ignore")[-1200:]
+            except Exception:
+                tail = ""
+            err = (
+                f"mihomo process up but mixed-port {port} not listening "
+                f"(bind failure or conflict). log_tail={tail[-400:]}"
+            )
+            # kill useless process so we do not leak "half-alive" cores
+            try:
+                stop_mihomo(port, reason="start_mixed_port_dead")
+            except Exception:
+                pass
+            alive = False
     switched = {}
-    if alive and node_name:
+    if alive and mixed_up and node_name:
         # external-controller comes up slightly after mixed-port
         for _ in range(8):
             switched = _apply_selected_node(port, node_name)
@@ -328,18 +593,41 @@ def start_mihomo(port: int, subscription_name: str = "default", node_name: str |
                 break
             time.sleep(0.25)
     return {
-        "ok": alive,
+        "ok": bool(alive and mixed_up),
         "port": port,
-        "pid": proc.pid,
+        "pid": proc.pid if proc is not None else None,
         "cfg": str(cfg),
         "log": str(log),
         "error": err,
         "switched": switched,
         "node": node_name,
+        "mixed_port_up": mixed_up,
     }
 
 
-def stop_mihomo(port: int) -> dict[str, Any]:
+def stop_mihomo(port: int, *, reason: str = "unspecified", profile_id: str | None = None) -> dict[str, Any]:
+    """Stop mihomo for port. Always log caller reason — critical for offline debugging."""
+    try:
+        _INTENTIONAL_STOPS.add(int(port))
+    except Exception:
+        pass
+    try:
+        from mozilla_manager.paths import p as root_p, ensure_layout, safe_resolve
+        ensure_layout()
+        logp = safe_resolve(root_p("logs", "mihomo-stop-audit.log"))
+        import traceback, time as _time
+        with open(logp, "a", encoding="utf-8") as af:
+            af.write(
+                f"\n[{_time.strftime('%Y-%m-%dT%H:%M:%S')}] port={port} reason={reason} profile={profile_id}\n"
+            )
+            af.write("".join(traceback.format_stack(limit=10)))
+    except Exception:
+        pass
+    try:
+        from mozilla_manager import db
+        db.audit("mihomo_stop", profile_id, {"port": int(port), "reason": str(reason)})
+    except Exception:
+        pass
     proc = _PROCS.pop(port, None)
     pid_file = NODES_DIR / f"mihomo-{port}.pid"
     pids: set[int] = set()
@@ -567,7 +855,7 @@ def cleanup_orphan_mihomo(*, keep_ports: set[int] | None = None, dry_run: bool =
 
     if not dry_run:
         for port in sorted(ports_to_stop):
-            r = stop_mihomo(port)
+            r = stop_mihomo(port, reason="cleanup_orphan")
             # force-kill any remaining pids on this port
             for item in list_live_mihomo_processes():
                 if int(item.get("port") or 0) != port:

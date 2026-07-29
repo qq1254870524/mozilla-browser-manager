@@ -31,6 +31,7 @@ Windows 使用目录（只在这里双击）:
   cd /home/baoge/Mozilla && bash scripts/export_to_windows.sh
 
 ----
+v1.10.6 freetaxusa点Create account后断网修复（2026-07-30）
 v1.10.4 开网页后断网修复（2026-07-30）
 1) 禁止后台误杀 mihomo：运行时 watchdog 不再因一次 PID 误判就停代理
 2) Playwright 跨线程修复：标签自动保存 / CF 延迟检测 必须回到 BrowserWorker 线程

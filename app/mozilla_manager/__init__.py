@@ -1,3 +1,3 @@
 """Mozilla Browser Manager — portable, self-contained under project root."""
 
-__version__ = "1.10.4-v10.4"
+__version__ = "1.10.6-v10.6"

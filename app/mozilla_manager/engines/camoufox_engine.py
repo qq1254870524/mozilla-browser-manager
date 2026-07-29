@@ -151,14 +151,15 @@ def _finalize_stop(profile_id: str, *, reason: str = "stop") -> None:
             mark_stopped(profile_id)
         except Exception:
             pass
-        try:
-            from mozilla_manager.modules import mihomo_svc
-            prof = ProfileStore().get(profile_id)
-            port = getattr(prof.proxy, "mihomo_port", None)
-            if port and getattr(prof.proxy, "mode", None) == "mihomo":
-                mihomo_svc.stop(int(port))
-        except Exception:
-            pass
+        if reason not in ("reconcile_dead", "reconcile"):
+            try:
+                from mozilla_manager.modules import mihomo_svc
+                prof = ProfileStore().get(profile_id)
+                port = getattr(prof.proxy, "mihomo_port", None)
+                if port and getattr(prof.proxy, "mode", None) == "mihomo":
+                    mihomo_svc.stop(int(port), reason=f"finalize:{reason}", profile_id=profile_id)
+            except Exception:
+                pass
         try:
             from mozilla_manager.engines.sync_bridge import drop_worker
             drop_worker(profile_id)

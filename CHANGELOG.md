@@ -6,6 +6,32 @@
 
 ---
 
+## [1.10.6] - 2026-07-30 — v10.6 freetaxusa「点 Create account 后全标签断网」
+
+### 实测
+
+- 管理器完整 launch 路径实测：`api.ip.sb` → `auth.freetaxusa.com` → 点击 **Create new account** → 新标签再取 IP → `example.com`
+- **全程 mihomo mixed-port 存活**，浏览器侧 0 次 `ERR_PROXY_CONNECTION_FAILED`
+- 标题可达：`FreeTaxUSA® - New Account Setup`；其他标签仍返回出口 IP
+
+### 根因与修复
+
+- **mihomo 进程与父进程同组**：Linux 未 `start_new_session`，父 shell/SIGHUP/客户端退出会误杀代理 → 全标签 `ERR_PROXY_CONNECTION_FAILED`
+  - Linux：`start_new_session=True`
+  - Windows：`CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW`
+- **意外退出监视**：`mihomo-death-audit.log` + 若仍有 live 浏览器占用该 port 则自动 `start` 拉起
+- **stop 审计区分**：`_INTENTIONAL_STOPS` 避免把主动 stop 当成崩溃
+- **订阅回退**：`sub=default` 且无节点时回退到 **active 订阅**（及任意有节点的 sub），避免空配置/半残核心
+- **Chromium 双写 `--proxy-server=`**：Playwright `proxy=` + 启动参数，降低 Network Service 重绑后丢代理
+- **启动冒烟**：launch 同线程检测 mixed-port；`no-cors fetch` 软失败不拦启动；仅 port 宕机硬失败
+- **keepalive** 周期 3s → **1.5s**
+
+### 版本
+
+- `1.10.6-v10.6` / API `1.10.6` / client `1.10.6-client`
+
+---
+
 ## [1.10.4] - 2026-07-30 — v10.4 网络稳定性（开网页后断网）
 
 ### 严重修复

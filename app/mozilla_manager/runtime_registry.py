@@ -173,8 +173,66 @@ def list_running() -> dict[str, Any]:
     return reconcile_running(check_live=True)
 
 
-def ensure_watchdog(interval: float = 3.0) -> None:
-    """Background reconcile so manual browser close flips UI without clicking 停止."""
+def _ensure_mihomo_for_live_profiles() -> None:
+    """If a live browser profile uses mihomo but mixed-port is down, restart it.
+
+    This is the safety net for "opened page / clicked link → all tabs offline":
+    even if something accidentally stopped mihomo, bring it back while the
+    window is still open.
+    """
+    import socket
+    live = _engine_live_ids()
+    if not live:
+        return
+    try:
+        from mozilla_manager.store import ProfileStore
+        from mozilla_manager.modules import mihomo_svc
+    except Exception:
+        return
+    store = ProfileStore()
+    for pid in list(live):
+        try:
+            prof = store.get(pid)
+        except Exception:
+            continue
+        if getattr(prof.proxy, "mode", None) != "mihomo":
+            continue
+        port = getattr(prof.proxy, "mihomo_port", None)
+        if not port:
+            continue
+        port = int(port)
+        up = False
+        try:
+            s = socket.socket()
+            s.settimeout(0.25)
+            s.connect(("127.0.0.1", port))
+            s.close()
+            up = True
+        except Exception:
+            try:
+                s.close()
+            except Exception:
+                pass
+            up = False
+        if up:
+            continue
+        # restart
+        try:
+            sub = (prof.meta or {}).get("sub") or "default"
+            node = prof.proxy.node_name or ""
+            cfp = (prof.meta or {}).get("tls_client_fingerprint") or "chrome"
+            r = mihomo_svc.start(port, sub=sub, node=node or "", client_fingerprint=cfp)
+            try:
+                from mozilla_manager import db
+                db.audit("mihomo_keepalive_restart", pid, {"port": port, "result": r})
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+
+def ensure_watchdog(interval: float = 1.5) -> None:
+    """Background reconcile + mihomo keepalive while browsers are live."""
     global _WATCH_STARTED
     with _WATCH_LOCK:
         if _WATCH_STARTED:
@@ -186,6 +244,10 @@ def ensure_watchdog(interval: float = 3.0) -> None:
         while True:
             try:
                 reconcile_running(check_live=True)
+            except Exception:
+                pass
+            try:
+                _ensure_mihomo_for_live_profiles()
             except Exception:
                 pass
             time.sleep(interval)

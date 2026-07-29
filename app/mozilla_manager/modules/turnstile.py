@@ -278,7 +278,7 @@ def inject_token(page: Any, token: str) -> bool:
             return False
 
 
-def pass_cf_on_page(page: Any, *, timeout: float = 45.0, harvest: bool = True) -> dict[str, Any]:
+def pass_cf_on_page(page: Any, *, timeout: float = 12.0, harvest: bool = False) -> dict[str, Any]:
     """High-level: detect CF → wait interstitial → optional token harvest.
 
     Always-ready design: non-http / no-challenge pages return immediately.

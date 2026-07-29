@@ -118,5 +118,13 @@ def playwright_proxy(profile: Profile) -> dict | None:
             out["password"] = pwd
         return out
     if px.mode == "mihomo" and px.mihomo_port:
-        return {"server": f"socks5://127.0.0.1:{int(px.mihomo_port)}"}
+        # HTTP on mixed-port is far more reliable for Chromium/Patchright than socks5
+        # (socks5 + Playwright host-resolver-rules → intermittent ERR_PROXY_CONNECTION_FAILED).
+        meta = getattr(profile, "meta", None) or {}
+        proto = str(meta.get("mihomo_proxy_proto") or "http").lower().strip()
+        if proto in ("socks5", "socks5h", "socks"):
+            proto = "socks5"
+        else:
+            proto = "http"
+        return {"server": f"{proto}://127.0.0.1:{int(px.mihomo_port)}"}
     return None

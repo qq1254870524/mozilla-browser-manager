@@ -31,8 +31,8 @@ def start(
     )
 
 
-def stop(port: int) -> dict[str, Any]:
-    return stop_mihomo(port)
+def stop(port: int, *, reason: str = "svc_stop", profile_id: str | None = None) -> dict[str, Any]:
+    return stop_mihomo(port, reason=reason, profile_id=profile_id)
 
 
 def status() -> list[dict[str, Any]]:
