@@ -64,7 +64,7 @@ def health() -> dict[str, Any]:
         "ok": True,
         "root": str(ROOT),
         "module": "system",
-        "version": "1.10.6-v10.6",
+        "version": "1.10.7-v10.7",
         "db": str(db.db_path()),
     }
 

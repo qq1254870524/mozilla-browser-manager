@@ -1,6 +1,17 @@
 """Desktop client entry — one program bootstraps API + native UI."""
 from __future__ import annotations
 
+# Windows cp936/gbk consoles blow up on emoji node names (🇺🇸…); force UTF-8 I/O.
+try:
+    import sys as _sys
+    for _s in (_sys.stdout, _sys.stderr):
+        try:
+            _s.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+except Exception:
+    pass
+
 import argparse
 import sys
 from typing import Any

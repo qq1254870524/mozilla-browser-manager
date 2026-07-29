@@ -138,6 +138,84 @@ def mihomo_binary() -> Path:
     return MIHOMO_DIR / name
 
 
+def mihomo_data_dir(port: int | None = None) -> Path:
+    """Working dir for mihomo -d (geodata/cache). Never touch user HOME.
+
+    Use per-port subdir when port given so concurrent profiles do not lock one cache.db.
+    """
+    ensure_layout()
+    base = safe_resolve(MIHOMO_DIR / "data")
+    base.mkdir(parents=True, exist_ok=True)
+    if port is None:
+        return base
+    d = safe_resolve(base / f"p{int(port)}")
+    d.mkdir(parents=True, exist_ok=True)
+    # seed geodata into per-port dir (copy small refs from base/runtime)
+    for n in ("geoip.metadb", "GeoSite.dat", "geoip.dat", "geosite.dat"):
+        dest = d / n
+        if dest.exists() and dest.stat().st_size > 1000:
+            continue
+        for src_dir in (base, MIHOMO_DIR):
+            src = src_dir / n
+            if src.exists() and src.stat().st_size > 1000:
+                try:
+                    import shutil
+                    shutil.copy2(src, dest)
+                except Exception:
+                    pass
+                break
+    return d
+
+
+def ensure_mihomo_geodata() -> dict[str, Any]:
+    """Seed geoip/geosite into runtime so mihomo never blocks on first download.
+
+    Windows bug: fresh Desktop copy had no MMDB → mihomo logged
+    "Can't find MMDB, start download" and mixed-port never listened within
+    start timeout → browser launch failed entirely.
+    """
+    ensure_layout()
+    ddir = mihomo_data_dir()
+    # also keep copies next to binary (some builds look at cwd)
+    targets = [ddir, MIHOMO_DIR]
+    names = ("geoip.metadb", "GeoSite.dat", "geoip.dat", "geosite.dat")
+    sources: list[Path] = []
+    # 1) already in runtime
+    for n in names:
+        p1 = MIHOMO_DIR / n
+        if p1.exists() and p1.stat().st_size > 1000:
+            sources.append(p1)
+    # 2) Linux/dev cache
+    home_cfg = Path.home() / ".config" / "mihomo"
+    for n in names:
+        p1 = home_cfg / n
+        if p1.exists() and p1.stat().st_size > 1000:
+            sources.append(p1)
+    # 3) CC2 lab cache if present
+    for n in names:
+        p1 = Path("/home/baoge/.config/mihomo") / n
+        if p1.exists() and p1.stat().st_size > 1000:
+            sources.append(p1)
+    copied: list[str] = []
+    for src in sources:
+        for td in targets:
+            dest = td / src.name
+            try:
+                if dest.exists() and dest.stat().st_size > 1000:
+                    continue
+                import shutil
+                shutil.copy2(src, dest)
+                copied.append(str(dest))
+            except Exception:
+                pass
+    # minimal stub geoip.metadb is NOT enough; if still missing, disable is config-side
+    present = {
+        n: any((t / n).exists() and (t / n).stat().st_size > 1000 for t in targets)
+        for n in ("geoip.metadb", "GeoSite.dat")
+    }
+    return {"ok": True, "dir": str(ddir), "present": present, "copied": copied[:8]}
+
+
 def _port_free(port: int, host: str = "127.0.0.1") -> bool:
     """True if we can bind TCP on host:port (port is free)."""
     import socket
@@ -303,7 +381,13 @@ def _sanitize_config(data: dict[str, Any], port: int, node_name: str | None = No
         # Keep long-lived browser sockets from being killed on brief upstream blips
         "tcp-concurrent": True,
         "global-client-fingerprint": "chrome",
-        "profile": {"store-selected": True, "store-fake-ip": True},
+        # store-selected/fake-ip write cache.db under -d; multi-profile on Windows
+        # contended the same file → "CacheFile can't open: timeout" and flaky start.
+        "profile": {"store-selected": False, "store-fake-ip": False},
+        # CRITICAL (Windows): never block startup on GeoIP MMDB download.
+        # Rules are MATCH,PROXY only — geodata not required for routing.
+        "geo-auto-update": False,
+        "geodata-mode": False,
         "dns": {
             "enable": True,
             "listen": f"127.0.0.1:{port + 2000}",
@@ -312,7 +396,9 @@ def _sanitize_config(data: dict[str, Any], port: int, node_name: str | None = No
             "enhanced-mode": "redir-host",
             "nameserver": ["8.8.8.8", "1.1.1.1", "208.67.222.222"],
             "fallback": ["1.0.0.1", "8.8.4.4"],
-            "fallback-filter": {"geoip": True, "geoip-code": "CN", "ipcidr": ["240.0.0.0/4"]},
+            # geoip:true forced MMDB download; on fresh Windows install mixed-port
+            # never came up in time → start_mixed_port_dead → browser won't launch.
+            "fallback-filter": {"geoip": False, "ipcidr": ["240.0.0.0/4"]},
         },
         "proxies": proxies,
         "proxy-groups": groups,
@@ -526,8 +612,14 @@ def start_mihomo(port: int, subscription_name: str = "default", node_name: str |
     else:
         # New session: survive parent SIGHUP / shell exit (WSL/dev & nohup tests).
         popen_kwargs["start_new_session"] = True
+    # -d keeps geodata/cache inside project (no HOME write; no blocking download to %USERPROFILE%)
+    try:
+        ensure_mihomo_geodata()
+    except Exception:
+        pass
+    data_dir = mihomo_data_dir(port)
     proc = subprocess.Popen(
-        [str(bin_path), "-f", str(cfg)],
+        [str(bin_path), "-d", str(data_dir), "-f", str(cfg)],
         **popen_kwargs,
     )
     _PROCS[port] = proc
@@ -537,7 +629,8 @@ def start_mihomo(port: int, subscription_name: str = "default", node_name: str |
         pass
     pid_file = safe_resolve(NODES_DIR / f"mihomo-{port}.pid")
     pid_file.write_text(str(proc.pid), encoding="utf-8")
-    for _ in range(12):
+    # Up to ~6s for first connect attempt, then extra listen poll (~8s) — Windows AV can slow bind.
+    for _ in range(20):
         time.sleep(0.3)
         if proc.poll() is not None:
             break
@@ -562,13 +655,13 @@ def start_mihomo(port: int, subscription_name: str = "default", node_name: str |
             err = "process exited immediately; see log"
     else:
         # CRITICAL: process can be alive while Mixed-port failed ("address already in use").
-        for _ in range(15):
+        for _ in range(25):
             if _port_listening(port):
                 mixed_up = True
                 break
             if proc.poll() is not None:
                 break
-            time.sleep(0.2)
+            time.sleep(0.25)
         if not mixed_up:
             try:
                 tail = log.read_text(encoding="utf-8", errors="ignore")[-1200:]

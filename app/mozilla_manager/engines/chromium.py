@@ -1172,8 +1172,8 @@ class ChromiumLauncher(EngineLauncher):
                     _install_lifecycle_watch(profile.id, context)
                 except Exception:
                     pass
-                # Launch-time network smoke (same worker thread): prove proxy path works.
-                # If mixed-port died between mihomo start and browser ready, fail fast / one restart.
+                # Launch-time network smoke: mixed-port must be up. Avoid long in-page
+                # fetch (Windows headless + proxy can hang AbortController for tens of seconds).
                 smoke: dict[str, Any] = {"ok": True}
                 try:
                     if proxy and getattr(profile.proxy, "mode", None) == "mihomo":
@@ -1181,14 +1181,19 @@ class ChromiumLauncher(EngineLauncher):
                         port = int(getattr(profile.proxy, "mihomo_port", 0) or 0)
                         mixed_up = False
                         if port:
-                            try:
-                                s = _socket.socket()
-                                s.settimeout(0.4)
-                                s.connect(("127.0.0.1", port))
-                                s.close()
-                                mixed_up = True
-                            except Exception:
-                                mixed_up = False
+                            for _try in range(8):
+                                try:
+                                    s = _socket.socket(); s.settimeout(0.35)
+                                    s.connect(("127.0.0.1", port)); s.close()
+                                    mixed_up = True
+                                    break
+                                except Exception:
+                                    try:
+                                        s.close()
+                                    except Exception:
+                                        pass
+                                    import time as _t3
+                                    _t3.sleep(0.25)
                         if port and not mixed_up:
                             try:
                                 from mozilla_manager.modules import mihomo_svc
@@ -1196,8 +1201,8 @@ class ChromiumLauncher(EngineLauncher):
                                 node = profile.proxy.node_name or ""
                                 cfp = (profile.meta or {}).get("tls_client_fingerprint") or "chrome"
                                 mihomo_svc.start(port, sub=sub, node=node or "", client_fingerprint=cfp)
-                                import time as _t3
-                                for _ in range(15):
+                                import time as _t4
+                                for _ in range(12):
                                     try:
                                         s = _socket.socket(); s.settimeout(0.3)
                                         s.connect(("127.0.0.1", port)); s.close()
@@ -1208,67 +1213,18 @@ class ChromiumLauncher(EngineLauncher):
                                             s.close()
                                         except Exception:
                                             pass
-                                        _t3.sleep(0.2)
+                                        _t4.sleep(0.2)
                             except Exception as _re:
                                 smoke = {"ok": False, "error": f"mihomo restart failed: {_re}"}
                         if port and not mixed_up and smoke.get("ok", True):
                             smoke = {"ok": False, "error": f"mihomo mixed-port {port} down at launch smoke"}
-                        elif smoke.get("ok", True):
-                            # no-cors: success => opaque (status 0); real net failure => throw.
-                            # cors mode from about:blank false-negatives even when proxy works.
-                            _fetch_js = """async () => {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 15000);
-  try {
-    const r = await fetch('https://example.com/', { mode: 'no-cors', signal: ctrl.signal, cache: 'no-store' });
-    clearTimeout(t);
-    return { ok: true, type: (r && r.type) || '', status: r ? r.status : -1 };
-  } catch (e) {
-    clearTimeout(t);
-    return { ok: false, error: String(e) };
-  }
-}"""
-                            try:
-                                probe = page
-                                try:
-                                    cur = str(probe.url or "")
-                                except Exception:
-                                    cur = ""
-                                if not cur or cur == "about:blank" or cur.startswith("file:"):
-                                    try:
-                                        probe.goto("about:blank", wait_until="domcontentloaded", timeout=5000)
-                                    except Exception:
-                                        pass
-                                body = probe.evaluate(_fetch_js)
-                                if isinstance(body, dict) and body.get("ok"):
-                                    smoke = {"ok": True, "fetch": body}
-                                else:
-                                    raise RuntimeError(f"browser fetch failed: {body}")
-                            except Exception as _ne:
-                                try:
-                                    from mozilla_manager.modules import mihomo_svc
-                                    sub = (profile.meta or {}).get("sub") or "default"
-                                    node = profile.proxy.node_name or ""
-                                    cfp = (profile.meta or {}).get("tls_client_fingerprint") or "chrome"
-                                    if port:
-                                        mihomo_svc.start(port, sub=sub, node=node or "", client_fingerprint=cfp)
-                                    import time as _t4
-                                    _t4.sleep(0.8)
-                                    body2 = page.evaluate(_fetch_js)
-                                    if isinstance(body2, dict) and body2.get("ok"):
-                                        smoke = {"ok": True, "fetch": body2, "retried": True}
-                                    else:
-                                        smoke = {"ok": False, "error": f"fetch2={body2}", "first": str(_ne)[:200]}
-                                except Exception as _ne2:
-                                    smoke = {"ok": False, "error": str(_ne2)[:300], "first": str(_ne)[:200]}
+                        else:
+                            smoke = {"ok": True, "mixed_port": mixed_up, "port": port}
                 except Exception as _se:
-                    smoke = {"ok": False, "error": f"smoke internal: {_se}"}
+                    smoke = {"ok": True, "soft": True, "error": f"smoke internal: {_se}"}  # never block on smoke internals
                 if smoke.get("ok") is False and proxy and getattr(profile.proxy, "mode", None) == "mihomo":
-                    # Hard-fail only when mixed-port itself is down. Fetch flakes (CF/node blip)
-                    # must not prevent opening the window — keepalive will heal proxy.
                     err = str(smoke.get("error") or "")
-                    port_down = "mixed-port" in err and "down" in err
-                    if port_down:
+                    if "mixed-port" in err and "down" in err:
                         try:
                             _finalize_stop(profile.id, reason="launch_smoke_fail")
                         except Exception:
@@ -1284,7 +1240,7 @@ class ChromiumLauncher(EngineLauncher):
                     except Exception:
                         pass
                     smoke["soft_fail"] = True
-                    smoke["ok"] = True  # allow launch; browser stays up
+                    smoke["ok"] = True
                 return LaunchResult(
                     profile_id=profile.id,
                     ok=True,

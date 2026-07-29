@@ -6,6 +6,40 @@
 
 ---
 
+## [1.10.7] - 2026-07-30 — v10.7 Windows 浏览器启动失败（MMDB/编码/缓存锁）
+
+### 根因（Windows 实测）
+
+- 新鲜 Desktop 安装 **无 geoip.metadb** → mihomo 卡在 `Can't find MMDB, start download`
+- mixed-port 迟迟不监听 → `start_mixed_port_dead` → **浏览器根本启动不了**
+- 多 profile 共用同一 `-d` 目录 `cache.db` → `CacheFile can't open: timeout`
+- 控制台 **GBK** 无法打印节点名 emoji（🇺🇸）→ 日志/部分路径异常
+
+### 修复
+
+- 配置：`geo-auto-update: false`，DNS `fallback-filter.geoip: false`（MATCH,PROXY 不依赖 MMDB）
+- mihomo 启动加 **`-d runtime/mihomo/data/p<port>`**（每端口独立目录）
+- 内置/播种 `geoip.metadb` + `GeoSite.dat` 到 `runtime/mihomo/`
+- `profile.store-selected/fake-ip: false` 避免 cache 锁
+- 启动等待略加长；launch smoke 改为 **只验 mixed-port**（避免 Windows headless fetch 挂死）
+- 客户端/WEB/CLI/ bat：`PYTHONUTF8` + `chcp 65001` + stdout utf-8
+
+### Windows 交叉矩阵实测（Desktop）
+
+| 项 | 结果 |
+|----|------|
+| geodata 播种 | OK |
+| mihomo bare + mixed-port | OK |
+| HTTP 代理 example.com | 200 |
+| Chromium headless launch | OK 2.9s |
+| nav example / ip / freetaxusa | OK |
+| 多标签 mixed 仍存活 | OK |
+| Chromium **有界面 headful** launch | OK 3.6s + Example Domain |
+
+版本：`1.10.7-v10.7`
+
+---
+
 ## [1.10.6] - 2026-07-30 — v10.6 freetaxusa「点 Create account 后全标签断网」
 
 ### 实测

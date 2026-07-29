@@ -1,5 +1,16 @@
 from __future__ import annotations
 
+# Windows cp936/gbk consoles blow up on emoji node names (🇺🇸…); force UTF-8 I/O.
+try:
+    import sys as _sys
+    for _s in (_sys.stdout, _sys.stderr):
+        try:
+            _s.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+except Exception:
+    pass
+
 import json
 import sys
 from pathlib import Path
