@@ -46,17 +46,17 @@ _META_DEFAULTS = {
     "stealth_level": "max",
     "use_system_chrome": False,
     "use_bundled_chromium": True,
-    "lock_viewport": False,  # free resize; avoid drag jank
-
-    "window_maximized": False,
+    "lock_viewport": False,  # free resize → page content reflows with window
+    # Native Chrome look (title bar + normal border). Immersive/frameless is opt-in —
+    # clients used to look "boxed" vs script launches that felt like real browsers.
+    "window_maximized": True,
     "humanize": True,
     "show_cursor": False,
     "showcursor": False,
-    # v10.3 immersive (no OS title bar on Windows; compact chrome on Camoufox)
-    "immersive": True,
-    "frameless": True,
-    "title_bar": False,
-    "immersive_hard": False,  # hard frameless janks resize; keep false
+    "immersive": False,
+    "frameless": False,
+    "title_bar": True,
+    "immersive_hard": False,
 }
 
 
@@ -66,15 +66,15 @@ _MAX_STEALTH_FORCE_KEYS = {
     "stealth_v6": True,
     "use_system_chrome": False,
     "use_bundled_chromium": True,
-    "lock_viewport": False,  # free resize; avoid drag jank
-
-    "window_maximized": False,
+    "lock_viewport": False,  # free resize; content adapts
+    "window_maximized": True,
     "humanize": True,
     "show_cursor": False,
     "showcursor": False,
-    "immersive": True,
-    "frameless": True,
-    "title_bar": False,
+    # keep native window chrome even in max stealth (FP/scripts do anti-detect)
+    "immersive": False,
+    "frameless": False,
+    "title_bar": True,
     "immersive_hard": False,
     "auto_cf": True,
     "pass_cf": True,
@@ -100,6 +100,27 @@ def ensure_meta_defaults(
         if k not in out:
             out[k] = v
             changed = True
+    # One-shot UX migration: old "boxed" immersive + locked feel → native free-resize.
+    # Users can still opt back: meta.immersive=true / lock_viewport=true.
+    if out.get("_ux_native_v2") is not True:
+        # only auto-flip if user never explicitly set comfort/native overrides differently
+        if out.get("immersive") is True and out.get("frameless") is True and out.get("title_bar") is False:
+            out["immersive"] = False
+            out["frameless"] = False
+            out["title_bar"] = True
+            changed = True
+        if out.get("lock_viewport") is True and out.get("fixed_viewport") is not True:
+            # legacy lock caused "resize window but page content stays same size"
+            out["lock_viewport"] = False
+            changed = True
+        if "window_maximized" not in (meta or {}) or (meta or {}).get("window_maximized") is False:
+            # prefer maximized native window unless user set an explicit size
+            if not (meta or {}).get("window_width") and not (meta or {}).get("window_height"):
+                if out.get("window_maximized") is not True:
+                    out["window_maximized"] = True
+                    changed = True
+        out["_ux_native_v2"] = True
+        changed = True
     if force_max_stealth:
         out.pop("native_window", None)
         for k, v in _MAX_STEALTH_FORCE_KEYS.items():
@@ -431,7 +452,7 @@ def launch(
     store = ProfileStore()
     prof = store.get(profile_id)
     # Ensure max-stealth defaults exist on meta before engine reads them
-    meta0 = ensure_meta_defaults(prof.meta or {})
+    meta0 = ensure_meta_defaults(prof.meta or {}, persist=True, profile_id=profile_id)
     if meta0 != (prof.meta or {}):
         try:
             prof = store.update(profile_id, meta=meta0)

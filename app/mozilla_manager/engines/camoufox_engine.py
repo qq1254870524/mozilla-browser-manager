@@ -422,8 +422,7 @@ class CamoufoxLauncher(EngineLauncher):
                 except Exception:
                     exclude_addons = None
                 meta_pre = dict(profile.meta or {})
-                # 最强反检测默认：锁定指纹视口 + 窗口尺寸一致
-                # comfort: meta.stealth_level=comfort | lock_viewport=false | native_window=true
+                # Default free-resize (content reflows). lock_viewport=true pins FP box.
                 lock_vp = want_lock_viewport(meta_pre)
                 vp_w = int(getattr(env, "viewport_width", None) or meta_pre.get("viewport_width") or 1920)
                 vp_h = int(getattr(env, "viewport_height", None) or meta_pre.get("viewport_height") or 1080)
@@ -440,6 +439,7 @@ class CamoufoxLauncher(EngineLauncher):
                     opts["no_viewport"] = False
                 else:
                     opts["no_viewport"] = True
+                    opts["viewport"] = None
                 # OS 指纹：优先 profile 绑定；否则按宿主系统
                 try:
                     fp_os = None

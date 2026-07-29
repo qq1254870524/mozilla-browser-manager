@@ -731,16 +731,15 @@ def _stable_chromium_args(
                 args.append(a)
     except Exception:
         pass
-    # Window geometry: match fingerprint by default (strongest)
+    # Window geometry
+    #  - lock_viewport: fixed --window-size matching FP (automation box)
+    #  - free resize (default): maximize or user size; content reflows with window
     if not headless:
         lock = want_lock_viewport(meta)
         want_max = meta.get("window_maximized")
         if want_max is None:
-            # max stealth: never maximize by default (size must match FP)
-            want_max = False if lock else True
-        if want_max and not lock:
-            args.append("--start-maximized")
-        else:
+            want_max = (not lock)
+        if lock:
             try:
                 w = int(
                     meta.get("window_width")
@@ -757,6 +756,18 @@ def _stable_chromium_args(
                 args.append(f"--window-size={max(320, w)},{max(240, h)}")
             except Exception:
                 args.append("--window-size=1920,1080")
+        elif want_max:
+            args.append("--start-maximized")
+        elif meta.get("window_width") or meta.get("window_height") or viewport_width or viewport_height:
+            try:
+                w = int(meta.get("window_width") or viewport_width or meta.get("viewport_width") or 1280)
+                h = int(meta.get("window_height") or viewport_height or meta.get("viewport_height") or 800)
+                args.append(f"--window-size={max(320, w)},{max(240, h)}")
+            except Exception:
+                args.append("--start-maximized")
+        else:
+            # real-browser default: let Chromium pick a normal restored size / maximized
+            args.append("--start-maximized")
     # WSL / Linux containers often need these to keep the window alive
     import platform as _plat
     if _plat.system() == "Linux":
@@ -792,13 +803,12 @@ def _stable_chromium_args(
 
 
 def _viewport_launch_options(env, meta: dict[str, Any] | None, *, headless: bool) -> dict[str, Any]:
-    """Return viewport-related kwargs for launch_persistent_context.
+    """Viewport kwargs for launch_persistent_context.
 
-    **Default = max anti-detect**: lock viewport to env fingerprint size so
-    window.innerWidth/screen metrics stay consistent with stealth bundle.
+    Default (lock_viewport=false): **no fixed viewport** so HTML/CSS reflows when the
+    user resizes the window (real-browser behavior).
 
-    Comfort opt-out: meta.lock_viewport=false | stealth_level=comfort | native_window=true
-    → no_viewport (content fills freely resized window).
+    Opt-in lock (automation / fixed FP box): meta.lock_viewport=true | fixed_viewport=true.
     """
     meta = meta or {}
     lock = want_lock_viewport(meta)
@@ -806,7 +816,63 @@ def _viewport_launch_options(env, meta: dict[str, Any] | None, *, headless: bool
         w = int(getattr(env, "viewport_width", None) or meta.get("viewport_width") or 1920)
         h = int(getattr(env, "viewport_height", None) or meta.get("viewport_height") or 1080)
         return {"viewport": {"width": max(320, w), "height": max(240, h)}, "no_viewport": False}
-    return {"no_viewport": True}
+    # Explicit None + no_viewport: some Patchright builds still default 1280x720
+    # if only no_viewport is set — that left a "boxed" non-reflowing content area.
+    return {"no_viewport": True, "viewport": None}
+
+
+def _clear_device_metrics_override(context: Any) -> None:
+    """Drop CDP Emulation device metrics so layout tracks the real window size."""
+    try:
+        pages = list(getattr(context, "pages", []) or [])
+    except Exception:
+        pages = []
+    for page in pages:
+        try:
+            sess = context.new_cdp_session(page)
+            try:
+                sess.send("Emulation.clearDeviceMetricsOverride")
+            except Exception:
+                pass
+            try:
+                sess.detach()
+            except Exception:
+                pass
+        except Exception:
+            continue
+
+
+def _install_free_resize(context: Any, meta: dict[str, Any] | None) -> None:
+    """Ensure every page keeps free-resize layout (no sticky Playwright viewport)."""
+    if want_lock_viewport(meta):
+        return
+
+    def _on_page(page: Any) -> None:
+        try:
+            # If a prior session pinned viewport, clear it.
+            try:
+                # Playwright: setting viewport to None is not always exposed per-page;
+                # CDP clear is the reliable path.
+                sess = context.new_cdp_session(page)
+                sess.send("Emulation.clearDeviceMetricsOverride")
+                try:
+                    sess.detach()
+                except Exception:
+                    pass
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    try:
+        context.on("page", _on_page)
+    except Exception:
+        pass
+    try:
+        for pg in list(getattr(context, "pages", []) or []):
+            _on_page(pg)
+    except Exception:
+        pass
 
 
 
@@ -917,7 +983,11 @@ class ChromiumLauncher(EngineLauncher):
         with browser_only_launch_env(profile) as pol:
             pw = sync_playwright().start()
             try:
-                meta0 = dict(profile.meta or {})
+                try:
+                    from mozilla_manager.modules.profiles import ensure_meta_defaults
+                    meta0 = ensure_meta_defaults(dict(profile.meta or {}), persist=True, profile_id=profile.id)
+                except Exception:
+                    meta0 = dict(profile.meta or {})
                 # 默认不打开检测页；需要时 meta.open_check=true
                 if open_check is None:
                     if "open_check" in meta0:
@@ -947,7 +1017,7 @@ class ChromiumLauncher(EngineLauncher):
                         viewport_width=getattr(env, "viewport_width", None),
                         viewport_height=getattr(env, "viewport_height", None),
                     ),
-                    # 默认锁定指纹视口（screen/window 一致）；comfort 可 no_viewport
+                    # 默认 no_viewport：窗口缩放时页面内容自适应；lock_viewport=true 才钉死
                     **_viewport_launch_options(env, meta0, headless=headless),
                     # 隐藏自动化特征；只写一次，避免 keyword argument repeated
                     ignore_default_args=["--enable-automation"],
@@ -1049,6 +1119,14 @@ class ChromiumLauncher(EngineLauncher):
                 except Exception:
                     pass
                 page = context.pages[0] if context.pages else context.new_page()
+                # Free-resize / native window: kill any sticky device-metrics box
+                try:
+                    if not want_lock_viewport(meta0):
+                        _clear_device_metrics_override(context)
+                        _install_free_resize(context, meta0)
+                except Exception:
+                    pass
+
                 if env.languages:
                     page.set_extra_http_headers({"Accept-Language": ",".join(env.languages)})
 

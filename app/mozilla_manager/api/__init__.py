@@ -59,7 +59,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title="Mozilla Browser Manager",
-        version="1.10.7",
+        version="1.10.8",
         description="ROOT-locked browser manager — v10 fleet/vault/reports/backup/ws + v9",
     )
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")

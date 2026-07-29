@@ -6,6 +6,21 @@
 
 ---
 
+## [1.10.8] - 2026-07-30 — v10.8 原生窗口 + 缩放内容自适应
+
+### 体验
+
+- **窗口缩放时页面内容自适应**：默认 `no_viewport` + 显式 `viewport=None`，并在启动后 `Emulation.clearDeviceMetricsOverride`，消除「窗外框变了、里面网页尺寸不动」的钉死视口
+- **客户端启动不再“带框框”**：默认改为**原生标题栏/边框**（`immersive=false` / `title_bar=true`），与脚本拉起的真实浏览器手感一致；沉浸式改为可选 `meta.immersive=true`
+- 默认 `--start-maximized`（自由缩放），仅 `lock_viewport=true` 时钉死指纹窗口尺寸
+- 旧环境一次性迁移 `_ux_native_v2`（boxed immersive → native free-resize）
+
+### 版本
+
+- `1.10.8-v10.8`
+
+---
+
 ## [1.10.7] - 2026-07-30 — v10.7 Windows 浏览器启动失败（MMDB/编码/缓存锁）
 
 ### 根因（Windows 实测）
