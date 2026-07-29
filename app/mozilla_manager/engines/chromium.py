@@ -99,8 +99,224 @@ def _pid_alive(pid: int | None) -> bool:
         return False
 
 
+def _norm_ud(user_data_dir: str) -> str:
+    try:
+        from pathlib import Path
+        import os
+        return os.path.normcase(str(Path(user_data_dir).resolve()))
+    except Exception:
+        import os
+        return os.path.normcase(str(user_data_dir))
+
+
+def _cmdline_has_user_data(cmdline: str, ud_norm: str) -> bool:
+    if not cmdline or not ud_norm:
+        return False
+    import os
+    cl = os.path.normcase(str(cmdline))
+    ud = os.path.normcase(str(ud_norm))
+    cl_slash = cl.replace("\\", "/")
+    ud_slash = ud.replace("\\", "/")
+    if ud and ud in cl:
+        return True
+    if ud_slash and ud_slash in cl_slash:
+        return True
+    # profile id folder: data/profiles/<id>
+    try:
+        parts = [x for x in ud_slash.rstrip("/").split("/") if x]
+        if len(parts) >= 2 and parts[-2].lower() == "profiles":
+            marker = f"profiles/{parts[-1]}".lower()
+            if marker in cl_slash:
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def _iter_windows_browser_procs() -> list[tuple[int, str]]:
+    """Return (pid, commandline) for chrome/chromium/headless-shell only (not Edge WebView)."""
+    import sys
+    if not sys.platform.startswith("win"):
+        return []
+    out: list[tuple[int, str]] = []
+    # 1) PowerShell CIM
+    try:
+        import subprocess
+        ps = (
+            "$names=@('chrome.exe','chromium.exe','chrome-headless-shell.exe','headless_shell.exe');"
+            "Get-CimInstance Win32_Process -ErrorAction SilentlyContinue|"
+            "Where-Object { $names -contains $_.Name -and $_.CommandLine }|"
+            "ForEach-Object { '{0}`t{1}' -f $_.ProcessId, $_.CommandLine }"
+        )
+        r = subprocess.run(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="ignore",
+            timeout=8,
+        )
+        for line in (r.stdout or "").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            if "\t" in line:
+                pid_s, cl = line.split("\t", 1)
+            elif "`t" in line:
+                pid_s, cl = line.split("`t", 1)
+            else:
+                continue
+            try:
+                pid = int(str(pid_s).strip())
+            except Exception:
+                continue
+            low = (cl or "").lower()
+            if "msedgewebview" in low:
+                continue
+            if pid > 0 and cl:
+                out.append((pid, cl))
+        if out:
+            return out
+    except Exception:
+        pass
+    # 2) WMIC fallback
+    try:
+        import subprocess
+        for name in ("chrome.exe", "chromium.exe", "chrome-headless-shell.exe", "headless_shell.exe"):
+            r = subprocess.run(
+                ["wmic", "process", "where", f"name='{name}'", "get", "ProcessId,CommandLine", "/FORMAT:CSV"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="ignore",
+                timeout=8,
+            )
+            for line in (r.stdout or "").splitlines():
+                if not line or ("ProcessId" in line and "CommandLine" in line):
+                    continue
+                parts = line.split(",")
+                if len(parts) < 3:
+                    continue
+                try:
+                    pid = int(parts[-1].strip())
+                except Exception:
+                    continue
+                cl = ",".join(parts[1:-1]).strip().strip('"')
+                if "msedgewebview" in (cl or "").lower():
+                    continue
+                if pid > 0:
+                    out.append((pid, cl))
+    except Exception:
+        pass
+    return out
+
+
+_PID_CACHE: dict[str, tuple[float, set[int]]] = {}
+_PID_CACHE_LOCK = threading.Lock()
+
+
+def _find_pids_for_user_data(user_data_dir: str | None) -> set[int]:
+    if not user_data_dir:
+        return set()
+    ud = _norm_ud(user_data_dir)
+    import time as _t
+    now = _t.monotonic()
+    with _PID_CACHE_LOCK:
+        hit = _PID_CACHE.get(ud)
+        if hit and (now - hit[0]) < 1.0:
+            return set(hit[1])
+    found: set[int] = set()
+    import sys
+    if sys.platform.startswith("win"):
+        for pid, cl in _iter_windows_browser_procs():
+            if _cmdline_has_user_data(cl, ud):
+                found.add(int(pid))
+        with _PID_CACHE_LOCK:
+            _PID_CACHE[ud] = (_t.monotonic(), set(found))
+        return found
+    # Linux /proc
+    try:
+        from pathlib import Path
+        for proc in Path("/proc").iterdir():
+            if not proc.name.isdigit():
+                continue
+            try:
+                raw = (proc / "cmdline").read_bytes()
+            except Exception:
+                continue
+            if not raw:
+                continue
+            parts = [x.decode("utf-8", "ignore") for x in raw.split(bytes([0])) if x]
+            if not parts:
+                continue
+            exe = Path(parts[0]).name.lower()
+            joined = " ".join(parts)
+            if not any(tok in exe for tok in ("chrome", "chromium", "msedge", "camoufox", "firefox")):
+                continue
+            if _cmdline_has_user_data(joined, ud):
+                found.add(int(proc.name))
+    except Exception:
+        pass
+    with _PID_CACHE_LOCK:
+        _PID_CACHE[ud] = (_t.monotonic(), set(found))
+    return found
+
+
+def _kill_profile_browser_procs(user_data_dir: str | None, extra_pids: set[int] | None = None) -> list[int]:
+    """Force-kill browser process tree for this profile user-data-dir (Windows/Linux)."""
+    import sys
+    import subprocess
+    pids = set(extra_pids or ())
+    try:
+        pids |= _find_pids_for_user_data(user_data_dir)
+    except Exception:
+        pass
+    # invalidate pid cache so liveness flips quickly after kill/close
+    try:
+        if user_data_dir:
+            udn = _norm_ud(user_data_dir)
+            with _PID_CACHE_LOCK:
+                _PID_CACHE.pop(udn, None)
+    except Exception:
+        pass
+    killed: list[int] = []
+    for pid in sorted(pids):
+        if pid <= 0:
+            continue
+        try:
+            if sys.platform.startswith("win"):
+                subprocess.run(
+                    ["taskkill", "/F", "/T", "/PID", str(pid)],
+                    capture_output=True,
+                    text=True,
+                    timeout=8,
+                )
+            else:
+                import os, signal
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                except Exception:
+                    pass
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except Exception:
+                    pass
+            killed.append(int(pid))
+        except Exception:
+            pass
+    return killed
+
+
+def _user_data_browser_alive(user_data_dir: str | None) -> bool:
+    """True if any chrome/chromium process still holds this user-data-dir."""
+    try:
+        return bool(_find_pids_for_user_data(user_data_dir))
+    except Exception:
+        return False
+
+
 def _discover_browser_pid(user_data_dir: str | None) -> int | None:
-    """Best-effort browser pid from SingletonLock or /proc cmdline (only browser processes)."""
+    """Best-effort browser pid: SingletonLock (Linux) / process cmdline (Windows+Linux)."""
     if not user_data_dir:
         return None
     import os
@@ -109,84 +325,75 @@ def _discover_browser_pid(user_data_dir: str | None) -> int | None:
         ud = str(Path(user_data_dir).resolve())
     except Exception:
         ud = str(user_data_dir)
+    # Linux symlink SingletonLock → hostname-pid
     lock = Path(ud) / "SingletonLock"
     try:
         if lock.is_symlink():
             target = os.readlink(lock)
             if target and "-" in target:
                 tail = target.rsplit("-", 1)[-1]
-                if tail.isdigit():
+                if tail.isdigit() and _pid_alive(int(tail)):
                     return int(tail)
     except Exception:
         pass
-    # Linux /proc scan
-    try:
-        proc_root = Path("/proc")
-        if proc_root.exists():
-            for proc in proc_root.iterdir():
-                if not proc.name.isdigit():
-                    continue
-                try:
-                    raw = (proc / "cmdline").read_bytes()
-                except Exception:
-                    continue
-                if not raw:
-                    continue
-                parts = [x.decode("utf-8", "ignore") for x in raw.split(bytes([0])) if x]
-                if not parts:
-                    continue
-                exe = Path(parts[0]).name.lower()
-                joined = " ".join(parts).lower()
-                if not any(tok in exe or tok in joined[:120] for tok in ("chrome", "chromium", "msedge", "camoufox", "firefox")):
-                    continue
-                if ud.lower() not in joined:
-                    continue
-                return int(proc.name)
-    except Exception:
-        pass
-    # Windows: SingletonSocket / lock already tried; best-effort via tasklist is too heavy.
-    return None
+    pids = _find_pids_for_user_data(ud)
+    if not pids:
+        return None
+    # Prefer the smallest pid (usually the browser main process)
+    return sorted(pids)[0]
 
 
 def is_run_alive(run: dict[str, Any] | None) -> bool:
     """Thread-safe liveness: never touch Playwright objects cross-thread.
 
-    Policy (network-first):
-      - `closed=True` (context close / stop) → dead
-      - otherwise treat as ALIVE unless browser pid is *repeatedly* confirmed dead
-        AND rediscovery fails for several watchdog cycles
-      - false-dead must never happen: it stops mihomo while the window is still open
-        ("打开网页后断网")
+    Policy:
+      - closed=True → dead
+      - if ANY chrome/headless-shell still owns user-data-dir → alive
+      - if known browser_pid alive → alive
+      - launch grace (<=5s) ONLY when we never observed a pid yet
+        (once pid was seen and is gone, do not keep UI 运行中)
+      - otherwise 2 consecutive dead hits (~3s) → dead
     """
     if not run or run.get("closed"):
         return False
+    ud = run.get("user_data")
+    # Strong signal: process list by user-data-dir (chrome.exe / headless-shell)
     try:
-        import time as _t
-        started = float(run.get("started_mono") or 0)
-        if started and (_t.monotonic() - started) < 15.0:
+        pids = _find_pids_for_user_data(ud)
+        if pids:
+            run["browser_pid"] = sorted(pids)[0]
+            run["_dead_hits"] = 0
+            run["_seen_pid"] = True
             return True
     except Exception:
         pass
     pid = run.get("browser_pid") or run.get("pid")
-    if not pid:
-        # no pid: trust in-memory run until close event
-        return True
-    if _pid_alive(int(pid)):
+    if pid and _pid_alive(int(pid)):
         run["_dead_hits"] = 0
+        run["_seen_pid"] = True
         return True
-    # try rediscover
+    # rediscover
     try:
-        bp = _discover_browser_pid(run.get("user_data"))
+        bp = _discover_browser_pid(ud)
         if bp and _pid_alive(int(bp)):
             run["browser_pid"] = bp
             run["_dead_hits"] = 0
+            run["_seen_pid"] = True
+            return True
+    except Exception:
+        pass
+    # Launch grace: only if we never saw a browser pid (Windows spawn lag)
+    try:
+        import time as _t
+        started = float(run.get("started_mono") or 0)
+        seen = bool(run.get("_seen_pid") or run.get("browser_pid"))
+        if (not seen) and started and (_t.monotonic() - started) < 5.0:
             return True
     except Exception:
         pass
     hits = int(run.get("_dead_hits") or 0) + 1
     run["_dead_hits"] = hits
-    # ~5 watchdog cycles * 3s ≈ 15s of confirmed death before reap
-    if hits < 5:
+    if hits < 2:
         return True
     return False
 
@@ -295,19 +502,51 @@ def _finalize_stop(profile_id: str, *, reason: str = "stop") -> None:
             mark_stopped(profile_id)
         except Exception:
             pass
-        # tear down dedicated mihomo — NEVER on reconcile_dead (false PID death
-        # was killing proxy while the Chromium window still open → all tabs offline).
-        # reconcile may clean Playwright handles only; proxy stays until explicit stop
-        # or real context_close / api_stop. A supervisor will keep it alive if needed.
-        if reason not in ("reconcile_dead", "reconcile"):
-            try:
-                from mozilla_manager.modules import mihomo_svc
-                prof = ProfileStore().get(profile_id)
-                port = getattr(prof.proxy, "mihomo_port", None)
-                if port and getattr(prof.proxy, "mode", None) == "mihomo":
+        # Always reap leftover chrome/chromium for this user-data-dir.
+        # Symptom: user closes window → UI still 运行中 / chrome.exe zombie.
+        try:
+            extra = set()
+            if run:
+                for k in ("browser_pid", "pid"):
+                    v = run.get(k)
+                    if v:
+                        try:
+                            extra.add(int(v))
+                        except Exception:
+                            pass
+                ud = run.get("user_data")
+            else:
+                ud = None
+            if not ud:
+                try:
+                    ud = str(ProfileStore().abs_user_data(ProfileStore().get(profile_id)))
+                except Exception:
+                    ud = None
+            _kill_profile_browser_procs(ud, extra_pids=extra)
+        except Exception:
+            pass
+        # Stop mihomo whenever browser is actually gone (including reconcile_dead).
+        # False-dead is mitigated by Windows user-data process scan in is_run_alive.
+        try:
+            from mozilla_manager.modules import mihomo_svc
+            prof = ProfileStore().get(profile_id)
+            port = getattr(prof.proxy, "mihomo_port", None)
+            if port and getattr(prof.proxy, "mode", None) == "mihomo":
+                # Only skip mihomo stop if a browser process for this profile is STILL alive
+                still = False
+                try:
+                    ud2 = None
+                    if run:
+                        ud2 = run.get("user_data")
+                    if not ud2:
+                        ud2 = str(ProfileStore().abs_user_data(prof))
+                    still = _user_data_browser_alive(ud2)
+                except Exception:
+                    still = False
+                if not still:
                     mihomo_svc.stop(int(port), reason=f"finalize:{reason}", profile_id=profile_id)
-            except Exception:
-                pass
+        except Exception:
+            pass
         try:
             from mozilla_manager.engines.sync_bridge import drop_worker
             drop_worker(profile_id)
@@ -400,6 +639,54 @@ def _install_tab_autosave(profile_id: str, context: Any) -> None:
     try:
         for pg in list(getattr(context, "pages", []) or []):
             _on_page(pg)
+    except Exception:
+        pass
+
+
+
+def _install_browser_death_poll(profile_id: str, user_data: str | None) -> None:
+    """Poll OS processes so closing the window clears 运行中 even if context.on(close) misses."""
+    def _loop() -> None:
+        import time
+        while True:
+            time.sleep(1.5)
+            with _LOCK:
+                run = _RUNS.get(profile_id)
+                if not run or run.get("closed") or profile_id in _STOPPING:
+                    return
+                ud = run.get("user_data") or user_data
+            # refresh pid
+            try:
+                if not is_run_alive(run):
+                    def _job() -> None:
+                        try:
+                            _finalize_stop(profile_id, reason="browser_process_dead")
+                        except Exception:
+                            try:
+                                mark_stopped(profile_id)
+                            except Exception:
+                                pass
+                    try:
+                        from mozilla_manager.engines.sync_bridge import call_in_profile_thread
+                        call_in_profile_thread(profile_id, _job, timeout=60.0)
+                    except Exception:
+                        threading.Thread(target=_job, name=f"mm-dead-{profile_id[:12]}", daemon=True).start()
+                    return
+                # keep pid fresh
+                try:
+                    bp = _discover_browser_pid(ud)
+                    if bp:
+                        with _LOCK:
+                            r2 = _RUNS.get(profile_id)
+                            if r2 is not None:
+                                r2["browser_pid"] = bp
+                except Exception:
+                    pass
+            except Exception:
+                pass
+
+    try:
+        threading.Thread(target=_loop, name=f"mm-bwatch-{profile_id[:12]}", daemon=True).start()
     except Exception:
         pass
 
@@ -1189,13 +1476,16 @@ class ChromiumLauncher(EngineLauncher):
                 except Exception:
                     pass
 
-                # discover browser pid (SingletonLock may appear slightly after launch)
+                # discover browser pid (Windows: process cmdline; Linux: SingletonLock+/proc)
                 bpid = _discover_browser_pid(user_data)
                 if not bpid:
                     try:
                         import time as _t
-                        _t.sleep(0.15)
-                        bpid = _discover_browser_pid(user_data)
+                        for _ in range(6):
+                            _t.sleep(0.25)
+                            bpid = _discover_browser_pid(user_data)
+                            if bpid:
+                                break
                     except Exception:
                         bpid = None
                 # v10.3: strip OS title bar (Windows) for immersive window
@@ -1227,6 +1517,7 @@ class ChromiumLauncher(EngineLauncher):
                         "saved_tabs": snapshot_http_tabs(context),
                         "started_mono": _tmono.monotonic(),
                         "_dead_hits": 0,
+                        "_seen_pid": bool(bpid),
                     }
                 mark_started(
                     profile.id,
@@ -1248,6 +1539,10 @@ class ChromiumLauncher(EngineLauncher):
                     pass
                 try:
                     _install_lifecycle_watch(profile.id, context)
+                except Exception:
+                    pass
+                try:
+                    _install_browser_death_poll(profile.id, user_data)
                 except Exception:
                     pass
                 # Launch-time network smoke: mixed-port must be up. Avoid long in-page

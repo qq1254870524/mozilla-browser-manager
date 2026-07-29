@@ -138,7 +138,7 @@ def reconcile_running(*, drop_missing_profiles: bool = True, check_live: bool = 
                 misses = int((ent or {}).get("_registry_misses") or 0) + 1
             except Exception:
                 misses = 1
-            if misses < 3:
+            if misses < 2:
                 if isinstance(data.get(pid), dict):
                     data[pid]["_registry_misses"] = misses
                     changed = True

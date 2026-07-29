@@ -433,7 +433,7 @@ def detect_egress_country(
             timeout=to,
             follow_redirects=True,
             verify=verify,
-            headers={"User-Agent": "Mozilla/5.0 (MozillaManager/1.10.9)"},
+            headers={"User-Agent": "Mozilla/5.0 (MozillaManager/1.10.10)"},
         )
 
     def _norm(out: dict[str, Any]) -> dict[str, Any]:

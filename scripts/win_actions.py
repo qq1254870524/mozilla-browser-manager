@@ -105,6 +105,15 @@ def action_install() -> None:
     print("  下载依赖（自动识别系统）")
     print(f"  目录: {ROOT}")
     print("=" * 50)
+    # sanity: required installer scripts must exist next to this file
+    need = [
+        ROOT / "scripts" / "install_all_deps.py",
+        ROOT / "scripts" / "fetch_chromium.py",
+        ROOT / "scripts" / "fetch_camoufox.py",
+    ]
+    missing = [str(x) for x in need if not x.is_file()]
+    if missing:
+        die("安装脚本缺失，请重新从开发目录同步:\n  " + "\n  ".join(missing))
     print("将安装：")
     print("  · Python 依赖（requirements.txt）")
     print("  · 补丁栈：patchright + rebrowser-playwright + 源码")
@@ -356,17 +365,26 @@ def main(argv: list[str] | None = None) -> int:
     print(f"项目目录: {ROOT}")
     print()
 
-    if key == "install":
-        action_install()
-    elif key == "client":
-        action_start_client()
-    elif key == "web":
-        action_start_web()
-    elif key == "stop":
-        action_stop_web()
-    else:
-        die(f"未实现: {key}")
-    return 0
+    try:
+        if key == "install":
+            action_install()
+        elif key == "client":
+            action_start_client()
+        elif key == "web":
+            action_start_web()
+        elif key == "stop":
+            action_stop_web()
+        else:
+            die(f"未实现: {key}")
+        return 0
+    except SystemExit:
+        raise
+    except Exception as e:
+        print(f"[错误] 未捕获异常: {e}")
+        import traceback
+        traceback.print_exc()
+        _pause()
+        return 1
 
 
 if __name__ == "__main__":
