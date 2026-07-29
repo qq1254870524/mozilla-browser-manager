@@ -29,3 +29,15 @@ Windows 使用目录（只在这里双击）:
 
 【从 WSL 同步】
   cd /home/baoge/Mozilla && bash scripts/export_to_windows.sh
+
+----
+v1.10.4 开网页后断网修复（2026-07-30）
+1) 禁止后台误杀 mihomo：运行时 watchdog 不再因一次 PID 误判就停代理
+2) Playwright 跨线程修复：标签自动保存 / CF 延迟检测 必须回到 BrowserWorker 线程
+3) CF 误判收紧：标题里裸 "cloudflare" 不再当挑战页（避免卡死 worker）
+4) 关闭 QUIC/HTTP3（--disable-quic），SOCKS 下更稳
+5) mihomo：redir-host + tcp-concurrent，减少假死
+
+重测步骤（桌面 C:\\Users\\zhang\\Desktop\\Mozilla）：
+  停止WEB.bat → 关客户端 → 启动客户端.bat → 启动环境 → 打开网页 → 再点几个链接
+若仍断网：看 logs\\mihomo-端口.log 是否大量 connect error/EOF（节点本身挂）

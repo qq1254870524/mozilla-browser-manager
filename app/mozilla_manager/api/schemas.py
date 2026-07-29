@@ -25,7 +25,7 @@ class CreateProfileIn(BaseModel):
     node_name: str = ""
     fingerprint_id: str = ""
     browser_only: bool = True
-    auto_cf: bool = False  # 启动时内置 Turnstile/CF 过盾
+    auto_cf: bool = True  # 默认时刻准备：遇 CF/Turnstile 自动过
     cf_timeout: float = 45.0
 
 
@@ -58,7 +58,7 @@ class BindCountryIn(BaseModel):
 
 class LaunchIn(BaseModel):
     headless: bool = False
-    open_check: bool = True
+    open_check: bool = False
     skip_preflight: bool = False
     require_proxy: bool = False
 

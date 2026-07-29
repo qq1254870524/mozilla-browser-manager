@@ -118,16 +118,17 @@ def preflight(profile: Profile, *, require_proxy: bool = False) -> dict[str, Any
 CHECK_PAGE_HTML = r"""<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Mozilla 一键检测</title>
+<title>新标签页</title>
 <style>
-:root{--ok:#047857;--bad:#b91c1c;--warn:#b45309;--line:#e5e7eb;--muted:#64748b;--bg:#f8fafc}
+:root{--ok:#047857;--bad:#b91c1c;--warn:#b45309;--line:#e5e7eb;--muted:#64748b;--bg:#ffffff}
 *{box-sizing:border-box}
-body{font-family:ui-sans-serif,system-ui,"PingFang SC","Microsoft YaHei",sans-serif;max-width:1100px;margin:20px auto;padding:0 14px 40px;background:var(--bg);color:#0f172a}
-h1{font-size:22px;margin:0 0 6px}
-.sub{color:var(--muted);margin-bottom:14px;font-size:13px;line-height:1.5}
-.grid{display:grid;grid-template-columns:1.1fr 1fr;gap:12px}
+html,body{margin:0;padding:0;min-height:100%;background:#fff;color:#0f172a}
+body{font-family:system-ui,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;padding:24px 28px 48px;width:100%;max-width:none}
+h1{font-size:20px;margin:0 0 6px;font-weight:600}
+.sub{color:var(--muted);margin-bottom:16px;font-size:13px;line-height:1.5}
+.grid{display:grid;grid-template-columns:1.1fr 1fr;gap:14px;width:100%}
 @media(max-width:900px){.grid{grid-template-columns:1fr}}
-.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px 16px}
 .card h3{margin:0 0 10px;font-size:14px}
 .row{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px dashed #eef2f7;font-size:13px}
 .row:last-child{border-bottom:0}
@@ -154,7 +155,7 @@ pre{background:#f1f5f9;padding:10px;border-radius:8px;overflow:auto;font-size:11
 .subscore{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
 .subscore .pill{font-weight:600}
 </style></head><body>
-<h1>Mozilla 一键检测页</h1>
+<h1>环境检测</h1>
 <div class="sub">出口 IP / 城市时区 / 语言地理 / <b>健康度·伪装评分</b> · 本地可离线打基础分 · 网络项走当前浏览器代理</div>
 <div id="status">
   <span class="pill muted" id="stPill">初始化…</span>

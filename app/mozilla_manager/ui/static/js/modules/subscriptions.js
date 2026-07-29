@@ -142,10 +142,11 @@ export async function deleteSub(name) {
     body: "{}",
   });
   toast(`已删除 ${name}` + (r.active ? ` · 当前改为 ${r.active}` : " · 无剩余订阅"));
+  const next = r.active || (Array.isArray(r.remaining) && r.remaining[0]) || "";
   const sn = document.getElementById("subName");
-  if (sn && sn.value === name) sn.value = r.active || "default";
+  if (sn && sn.value === name) sn.value = next;
   const px = document.getElementById("pxSubName");
-  if (px && px.value === name) px.value = r.active || "default";
+  if (px && px.value === name) px.value = next;
   await loadSubs();
   await loadNodes();
 }

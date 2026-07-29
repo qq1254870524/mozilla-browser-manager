@@ -434,8 +434,11 @@ export function bindProxiesDom() {
       } else if (del) {
         const name = del.dataset.delSub;
         if (!confirm(`删除订阅「${name}」？将移除 runtime/nodes/subs/${name} 全部节点文件`)) return;
-        await api("/api/subscriptions/" + encodeURIComponent(name) + "/delete", { method: "POST", body: "{}" });
-        toast("已删除订阅 " + name);
+        const r = await api("/api/subscriptions/" + encodeURIComponent(name) + "/delete", { method: "POST", body: "{}" });
+        toast("已删除订阅 " + name + (r && r.active ? (" · 当前 " + r.active) : ""));
+        const next = (r && r.active) || (r && r.remaining && r.remaining[0]) || "";
+        const el = document.getElementById("pxSubName"); if (el && el.value === name) el.value = next;
+        const sn = document.getElementById("subName"); if (sn && sn.value === name) sn.value = next;
         await loadProxyNodes();
       }
     } catch (err) {

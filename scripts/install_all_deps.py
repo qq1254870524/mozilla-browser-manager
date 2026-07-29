@@ -179,21 +179,89 @@ def download(url: str, dest: Path, *, timeout: int = 180) -> None:
 
 
 def install_geoip() -> None:
-    _step("4", "Camoufox geoip (jsdelivr)")
-    dest = ROOT / "runtime" / "cache" / "camoufox" / "geoip"
-    dest.mkdir(parents=True, exist_ok=True)
-    for name in ("geolite2-city-ipv4.mmdb", "geolite2-city-ipv6.mmdb"):
-        out = dest / name
-        if out.exists() and out.stat().st_size > 1_000_000:
-            print(f"[geoip] ok {name} ({out.stat().st_size})")
+    """Install MaxMind GeoLite2 city mmdb for Camoufox.
+
+    Camoufox (with XDG_CACHE_HOME=runtime/cache) expects:
+      runtime/cache/camoufox/geoip/mmdb/maxmind geolite2-ipv4.mmdb
+      runtime/cache/camoufox/geoip/mmdb/maxmind geolite2-ipv6.mmdb
+      runtime/cache/camoufox/geoip/config.yml
+    We also keep plain copies under geoip/ for doctor readability.
+    """
+    _step("4", "Camoufox geoip (mirrors)")
+    base = ROOT / "runtime" / "cache" / "camoufox" / "geoip"
+    mmdb_dir = base / "mmdb"
+    base.mkdir(parents=True, exist_ok=True)
+    mmdb_dir.mkdir(parents=True, exist_ok=True)
+
+    assets = [
+        (
+            "geolite2-city-ipv4.mmdb",
+            "maxmind geolite2-ipv4.mmdb",
+            [
+                "https://cdn.jsdelivr.net/npm/@ip-location-db/geolite2-city-mmdb/geolite2-city-ipv4.mmdb",
+                "https://raw.githubusercontent.com/sapics/ip-location-db/refs/heads/main/geolite2-city-mmdb/geolite2-city-ipv4.mmdb",
+                "https://ghfast.top/https://raw.githubusercontent.com/sapics/ip-location-db/refs/heads/main/geolite2-city-mmdb/geolite2-city-ipv4.mmdb",
+            ],
+        ),
+        (
+            "geolite2-city-ipv6.mmdb",
+            "maxmind geolite2-ipv6.mmdb",
+            [
+                "https://cdn.jsdelivr.net/npm/@ip-location-db/geolite2-city-mmdb/geolite2-city-ipv6.mmdb",
+                "https://raw.githubusercontent.com/sapics/ip-location-db/refs/heads/main/geolite2-city-mmdb/geolite2-city-ipv6.mmdb",
+                "https://ghfast.top/https://raw.githubusercontent.com/sapics/ip-location-db/refs/heads/main/geolite2-city-mmdb/geolite2-city-ipv6.mmdb",
+            ],
+        ),
+    ]
+
+    for plain_name, cf_name, urls in assets:
+        plain = base / plain_name
+        cf_path = mmdb_dir / cf_name
+        # reuse any existing good copy
+        src_existing = None
+        for cand in (cf_path, plain):
+            if cand.exists() and cand.stat().st_size > 1_000_000:
+                src_existing = cand
+                break
+        if src_existing is not None:
+            for dest in (plain, cf_path):
+                if dest != src_existing and (not dest.exists() or dest.stat().st_size < 1_000_000):
+                    try:
+                        dest.write_bytes(src_existing.read_bytes())
+                    except Exception:
+                        pass
+            print(f"[geoip] ok {plain_name} ({src_existing.stat().st_size})")
             continue
-        url = f"https://cdn.jsdelivr.net/npm/@ip-location-db/geolite2-city-mmdb/{name}"
-        print(f"[geoip] download {name}")
-        try:
-            download(url, out)
-            print(f"[geoip] saved {name} ({out.stat().st_size})")
-        except Exception as e:
-            print(f"[geoip] fail {name}: {e}")
+
+        print(f"[geoip] download {plain_name}")
+        data = None
+        last_err = None
+        for url in urls:
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 MozillaManagerInstaller/1.0"})
+                with urllib.request.urlopen(req, timeout=180) as r:
+                    data = r.read()
+                if data and len(data) > 1_000_000:
+                    print(f"[geoip] got {plain_name} via {url.split('/')[2]} ({len(data)} bytes)")
+                    break
+                data = None
+            except Exception as e:
+                last_err = e
+                data = None
+        if not data:
+            print(f"[geoip] fail {plain_name}: {last_err}")
+            continue
+        plain.write_bytes(data)
+        cf_path.write_bytes(data)
+        print(f"[geoip] saved {plain_name} + camoufox mmdb/{cf_name}")
+
+    # Camoufox active source config
+    cfg = base / "config.yml"
+    try:
+        cfg.write_text("name: MaxMind GeoLite2\n", encoding="utf-8")
+        print(f"[geoip] config.yml -> MaxMind GeoLite2")
+    except Exception as e:
+        print(f"[geoip] config.yml fail: {e}")
 
 
 def mihomo_target() -> tuple[Path, list[str], bool]:
@@ -231,7 +299,7 @@ def install_mihomo(*, force: bool = False) -> None:
     import zipfile
     import sys as _sys
 
-    _step("5", f"mihomo proxy core ({platform.system()}) — mirrors + resume")
+    _step("6", f"mihomo proxy core ({platform.system()}) — mirrors + resume")
     _sys.path.insert(0, str(ROOT / "scripts"))
     from netfetch import download_resume, github_mirrors  # type: ignore
 
@@ -285,25 +353,108 @@ def install_mihomo(*, force: bool = False) -> None:
     print(f"[mihomo] ok {bin_path} ({bin_path.stat().st_size})")
 
 
-def optional_rebrowser_patches() -> None:
+def _newest_chromium_exe() -> Path | None:
+    """Pick highest-revision chrome under runtime/browsers."""
+    bdir = ROOT / "runtime" / "browsers"
+    if not bdir.is_dir():
+        return None
+    found: list[Path] = []
+    for pattern in (
+        "chromium-*/chrome-win64/chrome.exe",
+        "chromium-*/chrome-win/chrome.exe",
+        "chromium-*/chrome-linux64/chrome",
+        "chromium-*/chrome-linux/chrome",
+    ):
+        found.extend(bdir.glob(pattern))
+    found = [x for x in found if x.is_file()]
+    if not found:
+        return None
+
+    def rev_key(path: Path) -> int:
+        for part in path.parts:
+            if part.startswith("chromium-"):
+                try:
+                    return int(part.split("-", 1)[1])
+                except Exception:
+                    return 0
+        return 0
+
+    found.sort(key=rev_key, reverse=True)
+    return found[0]
+
+
+def ensure_rebrowser_stack() -> None:
+    """补齐 rebrowser / patchright 补丁栈（源码 + 默认内核挂接）。
+
+    说明：rebrowser 的「补丁」在 pip 包 rebrowser-playwright 驱动层，
+    不需要单独下载改过的 Chrome。自定义 chrome 二进制是可选增强。
+    """
+    _step("5", "补丁栈 rebrowser / patchright")
     dest = ROOT / "runtime" / "patches" / "rebrowser-patches"
-    if (dest / "README.md").exists():
-        print(f"[patches] rebrowser-patches present")
-        return
     git = shutil.which("git")
-    if not git:
-        print("[patches] git not found, skip clone rebrowser-patches")
-        return
-    print("[patches] cloning rebrowser-patches ...")
-    subprocess.run(
-        [git, "clone", "--depth", "1", "https://github.com/rebrowser/rebrowser-patches.git", str(dest)],
-        cwd=str(ROOT),
-        check=False,
-    )
+    if (dest / "README.md").exists() or (dest / "package.json").exists():
+        print("[补丁] rebrowser-patches 源码: 已就绪")
+        if git:
+            subprocess.run(
+                [git, "-C", str(dest), "pull", "--ff-only"],
+                cwd=str(ROOT),
+                check=False,
+                capture_output=True,
+            )
+    else:
+        if not git:
+            print("[补丁] git 不可用，跳过克隆 rebrowser-patches（pip 驱动仍可用）")
+        else:
+            print("[补丁] 克隆 rebrowser-patches ...")
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            subprocess.run(
+                [git, "clone", "--depth", "1", "https://github.com/rebrowser/rebrowser-patches.git", str(dest)],
+                cwd=str(ROOT),
+                check=False,
+            )
+
+    # 挂接默认 Chromium，消除「缺少补丁/缺少内核」误解
+    reb = ROOT / "runtime" / "patches" / "rebrowser"
+    reb.mkdir(parents=True, exist_ok=True)
+    readme = reb / "README.txt"
+    if not readme.exists():
+        readme.write_text(
+            "此目录可放置自定义 chrome/chrome.exe（可选）。\n"
+            "rebrowser 反检测补丁已包含在 Python 包 rebrowser-playwright 中。\n"
+            "未放置自定义内核时，自动使用 runtime/browsers 下的 Chromium。\n"
+            "install 会写入 chrome.path 指向当前最新 Chromium。\n",
+            encoding="utf-8",
+        )
+    chrome = _newest_chromium_exe()
+    path_file = reb / "chrome.path"
+    if chrome is not None:
+        # store relative path when possible for portability across WSL/Windows copies
+        try:
+            rel = chrome.resolve().relative_to(ROOT.resolve())
+            path_file.write_text(str(rel).replace("\\", "/") + "\n", encoding="utf-8")
+        except Exception:
+            path_file.write_text(str(chrome.resolve()) + "\n", encoding="utf-8")
+        print(f"[补丁] 默认 Chromium 已挂接: {path_file.read_text(encoding='utf-8').strip()}")
+    else:
+        print("[补丁] 尚未找到 Chromium，请先完成浏览器内核下载")
+
+    # 确认 pip 补丁包
+    try:
+        import importlib
+        # just informational — actual import is in venv during verify
+        print("[补丁] patchright / rebrowser-playwright: 由 requirements.txt 安装（见步骤 2）")
+    except Exception:
+        pass
+    print("[补丁] 说明: 自定义 chrome 二进制=可选；驱动补丁=pip 已打好")
+
+
+def optional_rebrowser_patches() -> None:
+    """Backward-compatible name used by main()."""
+    ensure_rebrowser_stack()
 
 
 def verify(py: Path, env: dict[str, str]) -> None:
-    _step("6", "Verify imports + doctor")
+    _step("7", "Verify imports + doctor")
     code = """
 import importlib
 mods = ['playwright','patchright','camoufox','fastapi','uvicorn','webview']

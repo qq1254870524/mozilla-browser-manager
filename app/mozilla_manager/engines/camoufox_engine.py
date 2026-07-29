@@ -16,6 +16,13 @@ from ..runtime_registry import mark_started, mark_stopped
 from ..store import ProfileStore
 from .base import EngineLauncher
 from .proxy_util import playwright_proxy
+from .native_ux import camoufox_cursor_options, native_cursor_init_script, want_lock_viewport
+from .immersive import (
+    apply_immersive_to_browser_pid,
+    camoufox_immersive_prefs,
+    snapshot_http_tabs,
+    want_immersive,
+)
 
 _RUNS: dict[str, dict[str, Any]] = {}
 _LOCK = threading.Lock()
@@ -28,22 +35,39 @@ def get_run(profile_id: str) -> dict[str, Any] | None:
 
 
 def is_run_alive(run: dict[str, Any] | None) -> bool:
+    """Conservative liveness — mirror chromium (never false-dead → keep mihomo)."""
     if not run or run.get("closed"):
         return False
     try:
+        import time as _t
+        started = float(run.get("started_mono") or 0)
+        if started and (_t.monotonic() - started) < 15.0:
+            return True
+    except Exception:
+        pass
+    try:
         from mozilla_manager.engines.chromium import _pid_alive, _discover_browser_pid
     except Exception:
-        _pid_alive = lambda pid: False  # type: ignore
-        _discover_browser_pid = lambda ud: None  # type: ignore
+        return True
     pid = run.get("browser_pid") or run.get("pid")
     if not pid:
         bp = _discover_browser_pid(run.get("user_data"))
         if bp:
             run["browser_pid"] = bp
             pid = bp
-    if pid:
-        return _pid_alive(int(pid))
-    return True
+    if not pid:
+        return True
+    if _pid_alive(int(pid)):
+        run["_dead_hits"] = 0
+        return True
+    bp = _discover_browser_pid(run.get("user_data"))
+    if bp and _pid_alive(int(bp)):
+        run["browser_pid"] = bp
+        run["_dead_hits"] = 0
+        return True
+    hits = int(run.get("_dead_hits") or 0) + 1
+    run["_dead_hits"] = hits
+    return hits < 5
 
 
 def live_profile_ids() -> set[str]:
@@ -81,23 +105,18 @@ def _finalize_stop(profile_id: str, *, reason: str = "stop") -> None:
     try:
         with _LOCK:
             run = _RUNS.pop(profile_id, None)
-        if run and reason != "context_close":
+        if run:
             try:
-                ctx = run.get("context")
-                if ctx is None:
-                    try:
-                        ctx = _context_from_cm(run.get("cm") or run.get("mgr"))
-                    except Exception:
-                        ctx = None
-                urls: list[str] = []
-                if ctx is not None:
-                    for page in getattr(ctx, "pages", []) or []:
+                urls = list(run.get("saved_tabs") or [])
+                if not urls:
+                    ctx = run.get("context")
+                    if ctx is None:
                         try:
-                            u = page.url
-                            if u and str(u).startswith("http"):
-                                urls.append(u)
+                            ctx = _context_from_cm(run.get("cm") or run.get("mgr"))
                         except Exception:
-                            pass
+                            ctx = None
+                    if ctx is not None:
+                        urls = snapshot_http_tabs(ctx)
                 if urls:
                     store = ProfileStore()
                     prof = store.get(profile_id)
@@ -154,10 +173,31 @@ def _install_lifecycle_watch(profile_id: str, context: Any) -> None:
         return
 
     def _on_close() -> None:
+        urls: list[str] = []
+        try:
+            urls = snapshot_http_tabs(context)
+        except Exception:
+            urls = []
         with _LOCK:
             run = _RUNS.get(profile_id)
             if run is not None:
                 run["closed"] = True
+                if urls:
+                    run["saved_tabs"] = urls
+                elif run.get("saved_tabs"):
+                    urls = list(run.get("saved_tabs") or [])
+        if urls:
+            try:
+                store = ProfileStore()
+                prof = store.get(profile_id)
+                meta = dict(prof.meta or {})
+                meta["tabs"] = urls
+                groups = [g for g in list(meta.get("tab_groups") or []) if g.get("name") != "last"]
+                groups.insert(0, {"name": "last", "urls": urls})
+                meta["tab_groups"] = groups[:20]
+                store.update(profile_id, meta=meta)
+            except Exception:
+                pass
         try:
             mark_stopped(profile_id)
         except Exception:
@@ -303,27 +343,42 @@ def _firefox_privacy_prefs(meta: dict[str, Any] | None) -> dict[str, Any]:
             }
         )
 
-    doh_mode = str(meta.get("doh_mode") or "secure").lower()
-    if doh_mode not in ("off", "none", "false"):
+    # DoH / TRR: mode 3 (TRR-only) kills networking behind SOCKS/mihomo.
+    # Default: leave system/proxy DNS (mode 5 = off) unless user explicitly wants TRR
+    # and is not using a browser proxy (caller may also pass meta._has_proxy).
+    doh_mode = str(meta.get("doh_mode") or "automatic").lower()
+    has_proxy = bool(meta.get("_has_proxy")) or str(meta.get("proxy_mode") or "").lower() in (
+        "socks5", "mihomo", "http", "https",
+    )
+    if doh_mode not in ("off", "none", "false", "disable") and not (
+        has_proxy and not meta.get("force_doh_with_proxy")
+    ):
         tmpl = (
             meta.get("doh_template")
             or meta.get("doh_url")
             or (meta.get("doh_servers") or ["https://cloudflare-dns.com/dns-query"])[0]
         )
+        # 2 = TRR first with fallback; NEVER 3 by default
+        trr_mode = 2
+        if doh_mode in ("secure", "secure-only", "trr-only") and meta.get("doh_secure_ok"):
+            trr_mode = 3
         prefs.update(
             {
-                "network.trr.mode": 3 if meta.get("doh_force", True) else 2,  # 3=only TRR
+                "network.trr.mode": trr_mode,
                 "network.trr.uri": str(tmpl),
                 "network.trr.bootstrapAddress": "",
             }
         )
+    else:
+        # Explicitly disable TRR so DNS goes through the proxy channel
+        prefs.setdefault("network.trr.mode", 5)
     return prefs
 
 
 class CamoufoxLauncher(EngineLauncher):
     name = "camoufox"
 
-    def launch(self, profile: Profile, *, headless: bool = False, open_check: bool = True) -> LaunchResult:
+    def launch(self, profile: Profile, *, headless: bool = False, open_check: bool | None = None) -> LaunchResult:
         ensure_layout()
         _ensure_camoufox_root_cache()
         store = ProfileStore()
@@ -346,7 +401,17 @@ class CamoufoxLauncher(EngineLauncher):
 
         with browser_only_launch_env(profile) as pol:
             try:
-                prefs = _firefox_privacy_prefs(profile.meta)
+                meta0 = dict(profile.meta or {})
+                if open_check is None:
+                    open_check = bool(meta0["open_check"]) if "open_check" in meta0 else False
+                meta_for_prefs = dict(profile.meta or {})
+                meta_for_prefs["_has_proxy"] = bool(proxy)
+                meta_for_prefs["proxy_mode"] = str(getattr(profile.proxy, "mode", "") or "")
+                prefs = _firefox_privacy_prefs(meta_for_prefs)
+                try:
+                    prefs.update(camoufox_immersive_prefs(profile.meta or {}))
+                except Exception:
+                    pass
                 # exclude default UBO download — keeps launch offline-friendly & ROOT-local.
                 # Profile-level extensions are loaded separately via our runtime/extensions.
                 exclude_addons = None
@@ -355,6 +420,12 @@ class CamoufoxLauncher(EngineLauncher):
                     exclude_addons = list(DefaultAddons)  # exclude ALL defaults
                 except Exception:
                     exclude_addons = None
+                meta_pre = dict(profile.meta or {})
+                # 最强反检测默认：锁定指纹视口 + 窗口尺寸一致
+                # comfort: meta.stealth_level=comfort | lock_viewport=false | native_window=true
+                lock_vp = want_lock_viewport(meta_pre)
+                vp_w = int(getattr(env, "viewport_width", None) or meta_pre.get("viewport_width") or 1920)
+                vp_h = int(getattr(env, "viewport_height", None) or meta_pre.get("viewport_height") or 1080)
                 opts: dict[str, Any] = {
                     "headless": headless,
                     "persistent_context": True,
@@ -363,6 +434,46 @@ class CamoufoxLauncher(EngineLauncher):
                     "firefox_user_prefs": prefs,
                     "addons": [],
                 }
+                if lock_vp:
+                    opts["viewport"] = {"width": max(320, vp_w), "height": max(240, vp_h)}
+                    opts["no_viewport"] = False
+                else:
+                    opts["no_viewport"] = True
+                # OS 指纹：优先 profile 绑定；否则按宿主系统
+                try:
+                    fp_os = None
+                    try:
+                        plat = (env.fingerprint.platform if env.fingerprint else "") or ""
+                        if "Win" in plat:
+                            fp_os = "windows"
+                        elif "Mac" in plat:
+                            fp_os = "macos"
+                        elif "Linux" in plat:
+                            fp_os = "linux"
+                    except Exception:
+                        fp_os = None
+                    if fp_os:
+                        opts["os"] = fp_os
+                    else:
+                        import platform as _plat
+                        sys_os = _plat.system()
+                        if sys_os == "Windows":
+                            opts["os"] = "windows"
+                        elif sys_os == "Darwin":
+                            opts["os"] = "macos"
+                        else:
+                            opts["os"] = "linux"
+                except Exception:
+                    pass
+                # 窗口尺寸：与指纹视口对齐（可 meta.window_width/height 覆盖）
+                try:
+                    ww = int(meta_pre.get("window_width") or vp_w)
+                    wh = int(meta_pre.get("window_height") or vp_h)
+                    if lock_vp or (meta_pre.get("window_width") and meta_pre.get("window_height")):
+                        opts["window"] = (max(320, ww), max(240, wh))
+                except Exception:
+                    if lock_vp:
+                        opts["window"] = (max(320, vp_w), max(240, vp_h))
                 if exclude_addons is not None:
                     opts["exclude_addons"] = exclude_addons
                 if env.timezone_id:
@@ -394,6 +505,19 @@ class CamoufoxLauncher(EngineLauncher):
                     opts["geoip"] = geo_opt.strip()
                 # else: omit geoip
 
+                # 拟人轨迹 humanize 默认 ON；软件假光标 showcursor 默认 OFF（系统鼠标外观）
+                try:
+                    meta_c = profile.meta or {}
+                    for k, v in camoufox_cursor_options(meta_c).items():
+                        if k == "config":
+                            base_cfg = dict(opts.get("config") or {})
+                            base_cfg.update(v or {})
+                            opts["config"] = base_cfg
+                        else:
+                            opts[k] = v
+                except Exception:
+                    opts.setdefault("humanize", True)
+
                 def _enter(launch_opts: dict[str, Any]):
                     b = Camoufox(**launch_opts)
                     context_mgr = b.__enter__()
@@ -414,6 +538,12 @@ class CamoufoxLauncher(EngineLauncher):
                         return LaunchResult(profile_id=profile.id, ok=False, message=msg)
                 ctx = _context_from_cm(cm)
 
+                # Native OS cursor
+                try:
+                    if ctx is not None and hasattr(ctx, "add_init_script"):
+                        ctx.add_init_script(native_cursor_init_script())
+                except Exception:
+                    pass
                 # fingerprint init
                 try:
                     apply_fingerprint_to_context(ctx, env.fingerprint)
@@ -471,6 +601,12 @@ class CamoufoxLauncher(EngineLauncher):
                 # restore tabs / optional check page
                 try:
                     tabs = list((profile.meta or {}).get("tabs") or [])
+                    if not tabs:
+                        # fallback last tab group
+                        for g in list((profile.meta or {}).get("tab_groups") or []):
+                            if g.get("name") == "last" and g.get("urls"):
+                                tabs = list(g.get("urls") or [])
+                                break
                     if open_check and page is not None:
                         uri = write_check_page(profile)
                         page.goto(uri, wait_until="domcontentloaded")
@@ -520,6 +656,18 @@ class CamoufoxLauncher(EngineLauncher):
                     bpid = _discover_browser_pid(str(ROOT / profile.user_data_dir))
                 except Exception:
                     bpid = None
+                meta_l = dict(profile.meta or {})
+                try:
+                    if bpid and want_immersive(meta_l):
+                        apply_immersive_to_browser_pid(bpid, meta_l)
+                except Exception:
+                    pass
+                saved = []
+                try:
+                    if ctx is not None:
+                        saved = snapshot_http_tabs(ctx)
+                except Exception:
+                    saved = []
                 with _LOCK:
                     _RUNS[profile.id] = {
                         "cm": cm,
@@ -530,6 +678,8 @@ class CamoufoxLauncher(EngineLauncher):
                         "user_data": str(ROOT / profile.user_data_dir) if profile.user_data_dir else None,
                         "browser_pid": bpid,
                         "closed": False,
+                        "immersive": bool(want_immersive(meta_l)),
+                        "saved_tabs": saved,
                     }
                 mark_started(
                     profile.id,
@@ -540,6 +690,8 @@ class CamoufoxLauncher(EngineLauncher):
                         "browser_only": bool(pol.get("browser_only")),
                         "fingerprint": env.fingerprint.template_id if env.fingerprint else None,
                         "browser_pid": bpid,
+                        "immersive": bool(want_immersive(meta_l)),
+                        "stealth_level": meta_l.get("stealth_level") or "max",
                     },
                 )
                 try:

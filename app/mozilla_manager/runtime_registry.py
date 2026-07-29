@@ -38,7 +38,7 @@ def _save(data: dict[str, Any]) -> None:
 
 def mark_started(profile_id: str, info: dict[str, Any] | None = None) -> None:
     data = _load()
-    data[profile_id] = {"started_at": _now(), **(info or {})}
+    data[profile_id] = {"started_at": _now(), "_registry_misses": 0, **(info or {})}
     _save(data)
     try:
         db.set_run_state(
@@ -128,28 +128,32 @@ def reconcile_running(*, drop_missing_profiles: bool = True, check_live: bool = 
             continue
 
         # browser no longer alive in this process → stop marker
+        # IMPORTANT: engines already reap dead runs (with multi-hit grace). Registry
+        # only drops the marker. Do NOT kill mihomo here on a single miss — that was
+        # killing the proxy while Chromium was still open ("page then offline").
         if live is not None and pid not in live:
+            # soft grace via misses counter inside registry entry
+            try:
+                ent = data.get(pid) if isinstance(data.get(pid), dict) else {}
+                misses = int((ent or {}).get("_registry_misses") or 0) + 1
+            except Exception:
+                misses = 1
+            if misses < 3:
+                if isinstance(data.get(pid), dict):
+                    data[pid]["_registry_misses"] = misses
+                    changed = True
+                continue
             data.pop(pid, None)
             changed = True
             try:
                 db.set_run_state(pid, running=False)
-                db.audit("auto_stop", pid, {"reason": "browser_gone"})
+                db.audit("auto_stop", pid, {"reason": "browser_gone", "misses": misses})
             except Exception:
                 pass
-            # best-effort free worker / mihomo leftovers
+            # free worker only; mihomo is stopped by engine finalize_stop / profiles.stop
             try:
                 from mozilla_manager.engines.sync_bridge import drop_worker
                 drop_worker(pid)
-            except Exception:
-                pass
-            try:
-                from mozilla_manager.store import ProfileStore
-                from mozilla_manager.modules import mihomo_svc
-                prof_o = ProfileStore().get(pid)
-                port = getattr(prof_o.proxy, "mihomo_port", None)
-                if port and getattr(prof_o.proxy, "mode", None) == "mihomo":
-                    # only stop if nothing else claims live — already not live
-                    mihomo_svc.stop(int(port))
             except Exception:
                 pass
 

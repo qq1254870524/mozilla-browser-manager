@@ -11,4 +11,4 @@ The Web admin (ui/static js modules) is reused inside the native window.
 Backend business stays in modules/ + api/routes/ (1:1).
 """
 
-__version__ = "1.10.2-client"
+__version__ = "1.10.4-client"

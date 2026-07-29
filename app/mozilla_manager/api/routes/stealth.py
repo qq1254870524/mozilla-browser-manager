@@ -108,3 +108,11 @@ def probe(profile_id: str, fetch_egress: bool = True) -> dict[str, Any]:
         raise HTTPException(404, "profile not found")
     except Exception as e:
         raise HTTPException(400, str(e))
+
+
+@router.post("/restore-max-stealth")
+def restore_max_stealth() -> dict[str, Any]:
+    """一键恢复全部环境为最强反检测默认。"""
+    from mozilla_manager.modules.profiles import restore_max_stealth_all
+    return restore_max_stealth_all()
+

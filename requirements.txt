@@ -16,3 +16,4 @@ fastapi>=0.115
 uvicorn[standard]>=0.30
 # Desktop client (native window)
 pywebview>=5.0
+python-multipart>=0.0.9

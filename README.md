@@ -7,7 +7,7 @@
 
 ## 产品形态进度
 
-见 [docs/ROADMAP_STATUS.md](docs/ROADMAP_STATUS.md)
+见 [docs/ROADMAP_STATUS.md](docs/ROADMAP_STATUS.md) · 发布说明 [CHANGELOG.md](CHANGELOG.md)
 
 - MVP CLI ✅
 - 本地 Web 管理台（AdsPower 风格）✅ → `http://127.0.0.1:17888`
@@ -21,6 +21,8 @@
 - **v9** 巡检Watchdog / 通知中心 / 环境锁 / 任务进度 / 审计流 ✅
 - **v10** Fleet多机同步 / 密钥库 / 运维报表 / 整机备份 / WS任务流 ✅
 - **v10.1** 现有功能细节增强 / Camoufox对齐 / UI重绑·隐私·Cookie / 全量合规审计 86/86 ✅
+- **v10.3** 沉浸式 soft / 代理下可上网 / 缩放不卡 / CF 时刻准备 / 最强反检测默认 ✅
+- **v10.4** 开网页后断网修复（误杀 mihomo、跨线程 Playwright、QUIC、CF 误判）✅ — 见 [CHANGELOG.md](CHANGELOG.md)
 
 ## 内置
 

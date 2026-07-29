@@ -189,12 +189,20 @@ def detect_cf(page: Any) -> dict[str, Any]:
         info = real.evaluate(
             """() => {
   const out = { title: document.title || '', hasTurnstile: false, hasChallenge: false, textHit: false };
-  out.hasTurnstile = !!(document.querySelector('input[name="cf-turnstile-response"], .cf-turnstile, [data-sitekey], iframe[src*="turnstile"], iframe[src*="challenges.cloudflare"]'));
-  out.hasChallenge = !!(document.querySelector('#challenge-form, #challenge-running, #cf-challenge-running, .cf-browser-verification'));
-  const t = (out.title || '').toLowerCase();
-  if (t.includes('just a moment') || t.includes('attention required') || t.includes('cloudflare')) out.textHit = true;
-  const b = ((document.body && document.body.innerText) || '').slice(0, 1000);
-  if (/checking your browser|enable javascript and cookies|verify you are human/i.test(b)) out.textHit = true;
+  out.hasTurnstile = !!(document.querySelector('input[name="cf-turnstile-response"], .cf-turnstile, div.cf-turnstile, iframe[src*="challenges.cloudflare"], iframe[src*="/cdn-cgi/challenge"]'));
+  // data-sitekey alone is too broad (many non-CF widgets). Require CF-ish context.
+  if (!out.hasTurnstile) {
+    const sk = document.querySelector('[data-sitekey]');
+    if (sk && (sk.className || '').toLowerCase().includes('turnstile')) out.hasTurnstile = true;
+    if (sk && sk.closest && sk.closest('.cf-turnstile, .cf-challenge, #challenge-form')) out.hasTurnstile = true;
+  }
+  out.hasChallenge = !!(document.querySelector('#challenge-form, #challenge-running, #cf-challenge-running, .cf-browser-verification, .challenge-platform, #cf-wrapper'));
+  const t = (out.title || '').toLowerCase().trim();
+  // NEVER match bare "cloudflare" in title — false positives freeze worker & break net
+  if (t === 'just a moment...' || t === 'just a moment' || t.startsWith('just a moment')) out.textHit = true;
+  if (t.includes('attention required') && t.includes('cloudflare')) out.textHit = true;
+  const b = ((document.body && document.body.innerText) || '').slice(0, 1200).toLowerCase();
+  if (/checking your browser before|verify you are human|enable javascript and cookies to continue|performing security verification|sorry, you have been blocked/i.test(b)) out.textHit = true;
   return out;
 }"""
         )
@@ -231,7 +239,7 @@ def harvest_token(page: Any, log: Optional[Callable[[str], None]] = None, max_ro
     adapter = adapt_page(page)
     # always try wait first lightly
     try:
-        th.wait_cloudflare_passthrough(adapter, timeout=15, log=log)
+        th.wait_cloudflare_passthrough(adapter, timeout=8, log=log)
     except Exception:
         pass
     token = th.get_turnstile_token(adapter, log=log or print, max_rounds=max_rounds)

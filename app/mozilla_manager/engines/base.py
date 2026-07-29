@@ -9,7 +9,7 @@ class EngineLauncher(ABC):
     name: str
 
     @abstractmethod
-    def launch(self, profile: Profile, *, headless: bool = False, open_check: bool = True) -> LaunchResult:
+    def launch(self, profile: Profile, *, headless: bool = False, open_check: bool | None = None) -> LaunchResult:
         raise NotImplementedError
 
     @abstractmethod

@@ -22,7 +22,7 @@ class GcIn(BaseModel):
 
 class RestoreIn(BaseModel):
     headless: bool = False
-    open_check: bool = True
+    open_check: bool = False
 
 
 @router.get("/consistency")
@@ -84,6 +84,13 @@ def compliance_audit() -> dict:
 
 
 @router.post("/backfill-meta")
-def backfill_meta() -> dict:
+def backfill_meta(force_max_stealth: bool = False) -> dict:
     from mozilla_manager.modules.profiles import backfill_all_meta_defaults
-    return backfill_all_meta_defaults()
+    return backfill_all_meta_defaults(force_max_stealth=force_max_stealth)
+
+
+@router.post("/restore-max-stealth")
+def restore_max_stealth() -> dict:
+    """恢复全部配置为最强反检测默认（捆绑 Chromium + 锁定视口 + stealth_v6 + humanize）。"""
+    from mozilla_manager.modules.profiles import restore_max_stealth_all
+    return restore_max_stealth_all()

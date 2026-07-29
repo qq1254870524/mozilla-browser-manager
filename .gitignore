@@ -87,3 +87,4 @@ data/exports/**
 !data/env_packs/**
 !data/fingerprints/
 !data/fingerprints/**
+runtime/patches/rebrowser/chrome.path

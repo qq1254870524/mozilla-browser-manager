@@ -55,7 +55,13 @@ def build_stealth_init_script(bundle: dict[str, Any] | None) -> str:
     if (N.oscpu) {{ try {{ redefine(Navigator.prototype, 'oscpu', N.oscpu); }} catch (e) {{}} }}
     if (N.hardware_concurrency != null) redefine(Navigator.prototype, 'hardwareConcurrency', N.hardware_concurrency|0);
     if (N.device_memory != null) redefine(Navigator.prototype, 'deviceMemory', N.device_memory);
-    if (N.max_touch_points != null) redefine(Navigator.prototype, 'maxTouchPoints', N.max_touch_points|0);
+    try {{
+      const mobile = !!(N.ua_ch_mobile || (N.user_agent && /Mobile|Android|iPhone/i.test(String(N.user_agent))));
+      const touchVal = mobile ? ((N.max_touch_points!=null?N.max_touch_points:0)|0) : 0;
+      redefine(Navigator.prototype, 'maxTouchPoints', touchVal);
+    }} catch (e) {{
+      if (N.max_touch_points != null) redefine(Navigator.prototype, 'maxTouchPoints', N.max_touch_points|0);
+    }}
     if (AUTO.languages_override && AUTO.languages_override.length) {{
       redefine(Navigator.prototype, 'language', AUTO.languages_override[0]);
       redefine(Navigator.prototype, 'languages', Object.freeze([...AUTO.languages_override]));

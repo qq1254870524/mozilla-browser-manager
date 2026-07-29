@@ -242,12 +242,20 @@ def build_stealth_bundle(
         "aliased_point_size_range": [1, rng.choice([255, 1024])],
     }
 
+    # v10.3 immersive/frameless → no titlebar chrome offset (outer≈inner)
+    try:
+        from mozilla_manager.engines.immersive import want_immersive, stealth_screen_offsets
+        _imm = want_immersive(getattr(profile, "meta", None) or {})
+        _off = stealth_screen_offsets(getattr(profile, "meta", None) or {})
+    except Exception:
+        _imm = False
+        _off = {"avail_offset_y": 40, "toolbar": 40}
     screen = {
         "width": int(profile.env.viewport_width or 1920),
         "height": int(profile.env.viewport_height or 1080),
         "color_depth": int(fp.color_depth or 24),
         "pixel_ratio": round(rng.choice([1.0, 1.0, 1.25, 1.5, 2.0]), 2),
-        "avail_offset_y": rng.choice([0, 0, 40, 48]),  # taskbar
+        "avail_offset_y": int(_off.get("avail_offset_y") if _imm else rng.choice([0, 0, 40, 48])),
     }
 
     client_rects = {
@@ -375,7 +383,7 @@ def build_stealth_bundle(
             "model": navigator["model"],
             "mobile": navigator["ua_ch_mobile"],
         },
-        "outer_chrome": {"toolbar": screen["avail_offset_y"]},
+        "outer_chrome": {"toolbar": 0 if _imm else screen["avail_offset_y"]},
         "pixel_ratio": {"value": screen["pixel_ratio"]},
         "touch": {"max": navigator["max_touch_points"]},
         "storage_quota_bias": rng.randint(0, 50),

@@ -68,6 +68,11 @@ class BrowserWorker:
             return
         self._closed = True
         self._q.put(None)
+        # Never join the worker from inside itself (finalize_stop/context_close path).
+        # That deadlocks and freezes the profile after the first session teardown signal,
+        # which users experience as "browser went offline".
+        if threading.current_thread() is self._thread:
+            return
         self._thread.join(timeout=5)
 
 

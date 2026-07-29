@@ -60,11 +60,73 @@ def _safe_name(name: str) -> str:
     return s[:120]
 
 
-def sub_dir(name: str) -> Path:
+def sub_path(name: str) -> Path:
+    """Path to subs/<name> without creating it."""
     ensure_layout()
-    d = safe_resolve(RUNTIME_SUBS_DIR / _safe_name(name))
+    return safe_resolve(RUNTIME_SUBS_DIR / _safe_name(name))
+
+
+def sub_dir(name: str, *, create: bool = True) -> Path:
+    """Subscription directory. create=True for writes; use create=False for reads/deletes."""
+    d = sub_path(name)
+    if create:
+        d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _deleted_marker_dir() -> Path:
+    d = safe_resolve(RUNTIME_NODES_DIR / ".deleted_subs")
     d.mkdir(parents=True, exist_ok=True)
     return d
+
+
+def _is_deleted(name: str) -> bool:
+    name = _safe_name(name)
+    return (_deleted_marker_dir() / name).exists()
+
+
+def _mark_deleted(name: str) -> None:
+    name = _safe_name(name)
+    marker = _deleted_marker_dir() / name
+    marker.write_text(
+        json.dumps({"name": name, "deleted_at": _now()}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def _clear_deleted_marker(name: str) -> None:
+    name = _safe_name(name)
+    marker = _deleted_marker_dir() / name
+    if marker.exists():
+        try:
+            marker.unlink()
+        except Exception:
+            pass
+
+
+def _archive_loose_sources() -> list[str]:
+    """Move one-shot loose runtime/nodes dumps so they cannot resurrect default."""
+    archived: list[str] = []
+    arc = safe_resolve(RUNTIME_NODES_DIR / "imports" / "archived_loose")
+    arc.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    for fname in ("nodes.json", "subscription_raw.yaml", "subscription_raw.bin"):
+        src = RUNTIME_NODES_DIR / fname
+        if not src.exists() or not src.is_file():
+            continue
+        dest = arc / f"{ts}_{fname}"
+        try:
+            shutil.move(str(src), str(dest))
+            archived.append(str(dest.relative_to(ROOT)))
+        except Exception:
+            try:
+                # fallback copy+unlink
+                dest.write_bytes(src.read_bytes())
+                src.unlink()
+                archived.append(str(dest.relative_to(ROOT)))
+            except Exception:
+                pass
+    return archived
 
 
 def get_active() -> str:
@@ -73,10 +135,13 @@ def get_active() -> str:
     if path.exists():
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-            return _safe_name(str(data.get("name") or "default"))
+            name = _safe_name(str(data.get("name") or "default"))
+            # if pointer is stale (deleted), fall through to real subs
+            if name in list_sub_names():
+                return name
         except Exception:
             pass
-    # fallback first sub or default
+    # fallback first sub or default label (may not exist on disk)
     subs = list_sub_names()
     return subs[0] if subs else "default"
 
@@ -123,15 +188,23 @@ def delete_subscription(name: str, *, allow_active: bool = True) -> dict[str, An
     """Delete a subscription bundle under runtime/nodes/subs/<name> + legacy mirrors.
 
     If deleting the active sub, switch to another remaining sub (or clear active).
+    Writes a tombstone under runtime/nodes/.deleted_subs/<name> so migrate cannot
+    resurrect it from loose runtime/nodes/nodes.json dumps.
     """
-    import shutil
     ensure_layout()
     name = _safe_name(name)
     if not name:
         raise ValueError("empty subscription name")
-    d = sub_dir(name)
-    existed = d.exists() or (NODES_DIR / f"sub_{name}.json").exists() or (NODES_DIR / f"sub_{name}.yaml").exists()
+    d = sub_path(name)  # do NOT mkdir
+    existed = (
+        d.exists()
+        or (NODES_DIR / f"sub_{name}.json").exists()
+        or (NODES_DIR / f"sub_{name}.yaml").exists()
+        or (NODES_DIR / f"sub_{name}.raw").exists()
+    )
     if not existed:
+        # still plant tombstone so migrate won't recreate
+        _mark_deleted(name)
         raise KeyError(f"subscription not found: {name}")
 
     was_active = get_active() == name
@@ -153,14 +226,28 @@ def delete_subscription(name: str, *, allow_active: bool = True) -> dict[str, An
         except Exception:
             pass
 
+    # Loose dumps historically re-import as "default" on every list_subs().
+    # When deleting default (or any last copy), archive them so delete sticks.
+    archived_loose: list[str] = []
+    if name == "default":
+        archived_loose = _archive_loose_sources()
+
+    # SQLite index
+    try:
+        from mozilla_manager import db as _db
+        _db.delete_subscription_row(name)
+    except Exception:
+        pass
+
+    _mark_deleted(name)
+
     new_active = None
+    remain = [n for n in list_sub_names() if n != name]
     if was_active:
-        remain = [n for n in list_sub_names() if n != name]
         if remain:
             new_active = remain[0]
             set_active(new_active)
         else:
-            # clear active pointer
             try:
                 if ACTIVE_PATH().exists():
                     ACTIVE_PATH().unlink()
@@ -173,13 +260,26 @@ def delete_subscription(name: str, *, allow_active: bool = True) -> dict[str, An
             except Exception:
                 pass
             new_active = None
+    else:
+        # if active pointer is stale / missing, keep current
+        try:
+            new_active = get_active() if remain else None
+            if new_active and new_active not in remain:
+                if remain:
+                    new_active = remain[0]
+                    set_active(new_active)
+                else:
+                    new_active = None
+        except Exception:
+            new_active = remain[0] if remain else None
 
     return {
         "ok": True,
         "deleted": name,
         "was_active": was_active,
-        "active": new_active if was_active else get_active(),
+        "active": new_active,
         "remaining": list_sub_names(),
+        "archived_loose": archived_loose,
     }
 
 
@@ -196,7 +296,8 @@ def save_subscription_bundle(
     """Persist full subscription under runtime/nodes/subs/<name>/ + legacy data/nodes mirror."""
     ensure_layout()
     name = _safe_name(name)
-    d = sub_dir(name)
+    _clear_deleted_marker(name)  # re-import overrides prior delete
+    d = sub_dir(name, create=True)
     proxies = [x for x in (parsed.get("proxies") or []) if isinstance(x, dict)]
 
     # files — full, 禁止脱敏
@@ -258,7 +359,7 @@ def save_subscription_bundle(
 
 def load_sub_meta(name: str | None = None) -> dict[str, Any] | None:
     name = _safe_name(name or get_active())
-    path = sub_dir(name) / "meta.json"
+    path = sub_dir(name, create=False) / "meta.json"
     if path.exists():
         try:
             return json.loads(path.read_text(encoding="utf-8"))
@@ -275,7 +376,7 @@ def load_sub_meta(name: str | None = None) -> dict[str, Any] | None:
 
 def load_clash(name: str | None = None) -> dict[str, Any]:
     name = _safe_name(name or get_active())
-    for path in (sub_dir(name) / "clash.yaml", NODES_DIR / f"sub_{name}.yaml"):
+    for path in (sub_dir(name, create=False) / "clash.yaml", NODES_DIR / f"sub_{name}.yaml"):
         if path.exists():
             data = yaml.safe_load(path.read_text(encoding="utf-8", errors="ignore")) or {}
             if isinstance(data, dict):
@@ -285,7 +386,7 @@ def load_clash(name: str | None = None) -> dict[str, Any]:
 
 def clash_yaml_path(name: str | None = None) -> Path | None:
     name = _safe_name(name or get_active())
-    p1 = sub_dir(name) / "clash.yaml"
+    p1 = sub_dir(name, create=False) / "clash.yaml"
     if p1.exists():
         return p1
     p2 = NODES_DIR / f"sub_{name}.yaml"
@@ -297,7 +398,7 @@ def clash_yaml_path(name: str | None = None) -> Path | None:
 def load_nodes_full(name: str | None = None) -> list[dict[str, Any]]:
     """Full proxy dicts — no desensitization."""
     name = _safe_name(name or get_active())
-    nj = sub_dir(name) / "nodes.json"
+    nj = sub_dir(name, create=False) / "nodes.json"
     if nj.exists():
         try:
             data = json.loads(nj.read_text(encoding="utf-8"))
@@ -460,12 +561,16 @@ def import_nodes_file(path: str | Path, name: str = "imported") -> dict[str, Any
 
 
 def migrate_legacy_to_runtime() -> dict[str, Any]:
-    """Copy data/nodes/sub_* into runtime/nodes/subs/."""
+    """Copy data/nodes/sub_* into runtime/nodes/subs/ (one-shot; respects delete tombstones)."""
     ensure_layout()
     migrated = []
+    archived_loose: list[str] = []
     for yml in NODES_DIR.glob("sub_*.yaml"):
         name = yml.stem[4:] if yml.stem.startswith("sub_") else yml.stem
-        if (sub_dir(name) / "clash.yaml").exists():
+        name = _safe_name(name)
+        if _is_deleted(name):
+            continue
+        if (sub_dir(name, create=False) / "clash.yaml").exists():
             continue
         data = yaml.safe_load(yml.read_text(encoding="utf-8", errors="ignore")) or {}
         raw_p = NODES_DIR / f"sub_{name}.raw"
@@ -490,7 +595,11 @@ def migrate_legacy_to_runtime() -> dict[str, Any]:
     loose_yaml = RUNTIME_NODES_DIR / "subscription_raw.yaml"
     loose_json = RUNTIME_NODES_DIR / "nodes.json"
     loose_bin = RUNTIME_NODES_DIR / "subscription_raw.bin"
-    if "default" not in migrated and not (sub_dir("default") / "clash.yaml").exists():
+    if (
+        "default" not in migrated
+        and not _is_deleted("default")
+        and not (sub_dir("default", create=False) / "clash.yaml").exists()
+    ):
         if loose_yaml.exists() or loose_json.exists():
             data: dict[str, Any] = {}
             raw = b""
@@ -534,6 +643,8 @@ def migrate_legacy_to_runtime() -> dict[str, Any]:
                     node_count=len([x for x in (data.get("proxies") or []) if isinstance(x, dict)]),
                 )
                 migrated.append(meta["name"])
+                # Critical: archive loose dumps so list_subs() cannot resurrect default after user deletes it
+                archived_loose = _archive_loose_sources()
 
     if migrated and not ACTIVE_PATH().exists():
         set_active(migrated[0])
@@ -544,4 +655,4 @@ def migrate_legacy_to_runtime() -> dict[str, Any]:
             set_active(list_sub_names()[0])
     except Exception:
         pass
-    return {"ok": True, "migrated": migrated, "active": get_active()}
+    return {"ok": True, "migrated": migrated, "archived_loose": archived_loose, "active": get_active()}

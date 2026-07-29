@@ -112,33 +112,118 @@ def run_doctor() -> dict[str, Any]:
             "warn" if not cf_bins else "info",
         )
     )
-    geoip = list((cf_root / "geoip").glob("*.mmdb")) if (cf_root / "geoip").exists() else []
+    # Camoufox real path: runtime/cache/camoufox/geoip/mmdb/<name>-ipv4.mmdb
+    # Legacy/plain: runtime/cache/camoufox/geoip/*.mmdb
+    geo_dir = cf_root / "geoip"
+    geoip = []
+    if geo_dir.exists():
+        geoip = list(geo_dir.glob("*.mmdb")) + list((geo_dir / "mmdb").glob("*.mmdb")) if (geo_dir / "mmdb").exists() else list(geo_dir.glob("*.mmdb"))
+        if (geo_dir / "mmdb").exists():
+            geoip = list(geo_dir.glob("*.mmdb")) + list((geo_dir / "mmdb").glob("*.mmdb"))
+    # de-dup by resolve
+    seen = set()
+    uniq = []
+    for g in geoip:
+        try:
+            key = str(g.resolve())
+        except Exception:
+            key = str(g)
+        if key in seen:
+            continue
+        seen.add(key)
+        if g.is_file() and g.stat().st_size > 1_000_000:
+            uniq.append(g)
+    geoip = uniq
     items.append(
         CheckItem(
             "camoufox_geoip",
             bool(geoip),
-            f"{len(geoip)} mmdb files" if geoip else "missing geoip mmdb",
-            "info",
+            f"{len(geoip)} mmdb files" if geoip else "missing geoip mmdb — 运行「下载依赖」或 install_geoip",
+            "warn" if not geoip else "info",
         )
     )
 
-    # rebrowser-patches source
+    # rebrowser-patches source + stack readiness
     rp_src = PATCHES_DIR / "rebrowser-patches"
+    rp_ok = (rp_src / "README.md").exists() or (rp_src / "package.json").exists()
     items.append(
         CheckItem(
             "rebrowser_patches_source",
-            (rp_src / "README.md").exists() or (rp_src / "package.json").exists(),
-            str(rp_src.relative_to(ROOT)) if rp_src.exists() else "missing runtime/patches/rebrowser-patches",
-            "warn" if not rp_src.exists() else "info",
+            rp_ok,
+            str(rp_src.relative_to(ROOT)) if rp_ok else "missing — 将由「下载依赖」自动克隆",
+            "warn" if not rp_ok else "info",
         )
     )
-    reb = list((PATCHES_DIR / "rebrowser").glob("chrome*")) if (PATCHES_DIR / "rebrowser").exists() else []
+    # Optional custom chrome: NOT required. rebrowser patches live in pip rebrowser-playwright.
+    reb_dir = PATCHES_DIR / "rebrowser"
+    reb_bins = []
+    if reb_dir.exists():
+        # real binaries only (not chrome.path pointer / README)
+        allow = {"chrome", "chrome.exe", "chromium", "chromium.exe"}
+        reb_bins = [p for p in reb_dir.iterdir() if p.is_file() and p.name.lower() in allow]
+    path_file = reb_dir / "chrome.path"
+    path_target = ""
+    if path_file.is_file():
+        try:
+            path_target = path_file.read_text(encoding="utf-8").strip().splitlines()[0].strip()
+        except Exception:
+            path_target = ""
+    if reb_bins:
+        items.append(
+            CheckItem(
+                "rebrowser_custom_binary",
+                True,
+                "自定义内核: " + ", ".join(p.name for p in reb_bins),
+                "info",
+            )
+        )
+    elif path_target and Path(path_target).exists():
+        items.append(
+            CheckItem(
+                "rebrowser_custom_binary",
+                True,
+                f"已挂接默认 Chromium: {path_target}",
+                "info",
+            )
+        )
+    else:
+        # Still OK — driver-level patch does not need a custom browser binary
+        items.append(
+            CheckItem(
+                "rebrowser_custom_binary",
+                True,
+                "可选：未放自定义内核（正常）。rebrowser 补丁在 pip 包 rebrowser-playwright，使用 runtime/browsers 内 Chromium",
+                "info",
+            )
+        )
+    # Aggregate rebrowser stack
+    try:
+        import rebrowser_playwright  # noqa: F401
+        rb_pkg = True
+    except Exception:
+        rb_pkg = False
+    rb_chromium = bool(pw_chromium)
+    stack_ok = rb_pkg and rp_ok and rb_chromium
     items.append(
         CheckItem(
-            "rebrowser_custom_binary",
-            bool(reb),
-            ", ".join(str(x.name) for x in reb) or "optional custom chrome under runtime/patches/rebrowser/",
-            "info",
+            "rebrowser_stack",
+            stack_ok,
+            f"pkg={'OK' if rb_pkg else 'MISS'} source={'OK' if rp_ok else 'MISS'} chromium={'OK' if rb_chromium else 'MISS'}",
+            "warn" if not stack_ok else "info",
+        )
+    )
+    # patchright stack
+    try:
+        import patchright  # noqa: F401
+        pr_pkg = True
+    except Exception:
+        pr_pkg = False
+    items.append(
+        CheckItem(
+            "patchright_stack",
+            pr_pkg and bool(pw_chromium or pr_shell),
+            f"pkg={'OK' if pr_pkg else 'MISS'} browsers={'OK' if (pw_chromium or pr_shell) else 'MISS'}",
+            "warn" if not (pr_pkg and (pw_chromium or pr_shell)) else "info",
         )
     )
 

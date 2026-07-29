@@ -21,10 +21,12 @@ from mozilla_manager.store import ProfileStore
 
 # ---- meta defaults / enrichment (v1–v10 contract) ----
 _META_DEFAULTS = {
+    # ---- privacy / rebind (always on) ----
     "webrtc_mode": "disable",
-    "doh_mode": "secure",
+    "doh_mode": "automatic",
     "doh_template": "https://cloudflare-dns.com/dns-query",
-    "doh_force": True,
+    "doh_force": False,  # secure-only DoH breaks proxy net
+
     "doh_servers": [
         "https://cloudflare-dns.com/dns-query",
         "https://dns.google/dns-query",
@@ -34,16 +36,82 @@ _META_DEFAULTS = {
     "stealth_v6": True,
     "auto_rebind_on_launch": True,
     "browser_only_hint": True,
+    # CF always-ready (遇到 Cloudflare/Turnstile 自动过)
+    "auto_cf": True,
+    "pass_cf": True,
+    "cf_timeout": 45.0,
+    "cf_engine": "turnstile-harvester1",
+    # ---- max anti-detect defaults (stealth_level=max) ----
+    # comfort opt-in: meta.stealth_level="comfort" | native_window=true | use_system_chrome=true
+    "stealth_level": "max",
+    "use_system_chrome": False,
+    "use_bundled_chromium": True,
+    "lock_viewport": False,  # free resize; avoid drag jank
+
+    "window_maximized": False,
+    "humanize": True,
+    "show_cursor": False,
+    "showcursor": False,
+    # v10.3 immersive (no OS title bar on Windows; compact chrome on Camoufox)
+    "immersive": True,
+    "frameless": True,
+    "title_bar": False,
+    "immersive_hard": False,  # hard frameless janks resize; keep false
 }
 
 
-def ensure_meta_defaults(meta: dict[str, Any] | None, *, persist: bool = False, profile_id: str | None = None) -> dict[str, Any]:
-    """Fill missing privacy/rebind defaults for older profiles without wiping user values."""
+# Keys re-applied when restoring max anti-detect (overwrites comfort flips)
+_MAX_STEALTH_FORCE_KEYS = {
+    "stealth_level": "max",
+    "stealth_v6": True,
+    "use_system_chrome": False,
+    "use_bundled_chromium": True,
+    "lock_viewport": False,  # free resize; avoid drag jank
+
+    "window_maximized": False,
+    "humanize": True,
+    "show_cursor": False,
+    "showcursor": False,
+    "immersive": True,
+    "frameless": True,
+    "title_bar": False,
+    "immersive_hard": False,
+    "auto_cf": True,
+    "pass_cf": True,
+    "cf_engine": "turnstile-harvester1",
+}
+
+
+def ensure_meta_defaults(
+    meta: dict[str, Any] | None,
+    *,
+    persist: bool = False,
+    profile_id: str | None = None,
+    force_max_stealth: bool = False,
+) -> dict[str, Any]:
+    """Fill missing privacy/rebind/max-stealth defaults for older profiles.
+
+    By default only fills *missing* keys (never wipes explicit user values).
+    force_max_stealth=True re-applies strongest anti-detect keys (恢复最强反检测).
+    """
     out = dict(meta or {})
     changed = False
     for k, v in _META_DEFAULTS.items():
         if k not in out:
             out[k] = v
+            changed = True
+    if force_max_stealth:
+        out.pop("native_window", None)
+        for k, v in _MAX_STEALTH_FORCE_KEYS.items():
+            if out.get(k) != v:
+                out[k] = v
+                changed = True
+        # privacy baseline
+        if out.get("webrtc_mode") in (None, "", "default", "allow"):
+            out["webrtc_mode"] = "disable"
+            changed = True
+        if out.get("doh_mode") in (None, "", "off", "disable", "insecure"):
+            out["doh_mode"] = "automatic"
             changed = True
     if "extensions" not in out:
         try:
@@ -70,9 +138,9 @@ def _enrich_profile_dict(d: dict[str, Any], *, persist_defaults: bool = False) -
     d["auto_rebind_on_launch"] = bool(meta.get("auto_rebind_on_launch", True))
     d["privacy"] = {
         "webrtc_mode": meta.get("webrtc_mode", "disable"),
-        "doh_mode": meta.get("doh_mode", "secure"),
+        "doh_mode": meta.get("doh_mode", "automatic"),
         "doh_template": meta.get("doh_template"),
-        "doh_force": bool(meta.get("doh_force", True)),
+        "doh_force": bool(meta.get("doh_force", False)),
     }
     d["last_launch_rebind"] = meta.get("last_launch_rebind")
     d["last_egress"] = meta.get("last_egress")
@@ -90,13 +158,13 @@ def _enrich_profile_dict(d: dict[str, Any], *, persist_defaults: bool = False) -
     return d
 
 
-def backfill_all_meta_defaults() -> dict[str, Any]:
-    """One-shot: write missing privacy/rebind defaults into every profile.json."""
+def backfill_all_meta_defaults(*, force_max_stealth: bool = False) -> dict[str, Any]:
+    """One-shot: write missing (or force max-stealth) defaults into every profile.json."""
     store = ProfileStore()
     updated = []
     for p in store.list():
         before = dict(p.meta or {})
-        after = ensure_meta_defaults(before)
+        after = ensure_meta_defaults(before, force_max_stealth=force_max_stealth)
         if after != before:
             store.update(p.id, meta=after)
             try:
@@ -104,7 +172,17 @@ def backfill_all_meta_defaults() -> dict[str, Any]:
             except Exception:
                 pass
             updated.append(p.id)
-    return {"ok": True, "updated": updated, "count": len(updated)}
+    return {
+        "ok": True,
+        "updated": updated,
+        "count": len(updated),
+        "force_max_stealth": bool(force_max_stealth),
+    }
+
+
+def restore_max_stealth_all() -> dict[str, Any]:
+    """User-facing: 恢复全部配置为最强反检测默认。"""
+    return backfill_all_meta_defaults(force_max_stealth=True)
 
 
 def list_profiles() -> list[dict[str, Any]]:
@@ -150,7 +228,7 @@ def create_profile(
     node_name: str = "",
     fingerprint_id: str = "",
     browser_only: bool = True,
-    auto_cf: bool = False,
+    auto_cf: bool = True,
     cf_timeout: float = 45.0,
     **_extra: Any,
 ) -> dict[str, Any]:
@@ -222,20 +300,9 @@ def create_profile(
         meta["bound_node"] = node_name
     if rec:
         meta["node_recommend"] = {"country": rec.get("country"), "ok": rec.get("ok")}
-    # v4 defaults
-    meta.setdefault("webrtc_mode", "disable")
-    meta.setdefault("doh_mode", "secure")
-    meta.setdefault("doh_template", "https://cloudflare-dns.com/dns-query")
-    meta.setdefault("doh_force", True)
-    meta.setdefault("doh_servers", [
-        "https://cloudflare-dns.com/dns-query",
-        "https://dns.google/dns-query",
-        "https://dns.alidns.com/dns-query",
-    ])
-    meta.setdefault("geo_match_strict", False)  # set True to hard-block launch on geo mismatch
-    meta.setdefault("stealth_v6", True)
-    meta.setdefault("auto_rebind_on_launch", True)
-    # v5 CF / Turnstile — integrated in browser launch (engines read meta.auto_cf)
+    # v4–v10 + max anti-detect defaults
+    meta = ensure_meta_defaults(meta)
+    # v5 CF always-ready：默认开；显式 auto_cf=false 可关
     meta["auto_cf"] = bool(auto_cf)
     meta["pass_cf"] = bool(auto_cf)
     meta["cf_timeout"] = float(cf_timeout or 45.0)
@@ -354,7 +421,7 @@ def launch(
     profile_id: str,
     *,
     headless: bool = False,
-    open_check: bool = True,
+    open_check: bool = False,
     skip_preflight: bool = False,
     require_proxy: bool = False,
     start_mihomo: bool = False,
@@ -363,6 +430,17 @@ def launch(
     require_unlocked(profile_id)
     store = ProfileStore()
     prof = store.get(profile_id)
+    # Ensure max-stealth defaults exist on meta before engine reads them
+    meta0 = ensure_meta_defaults(prof.meta or {})
+    if meta0 != (prof.meta or {}):
+        try:
+            prof = store.update(profile_id, meta=meta0)
+        except Exception:
+            # still launch with enriched in-memory meta
+            try:
+                prof.meta = meta0
+            except Exception:
+                pass
 
     if start_mihomo or prof.proxy.mode == "mihomo":
         port = prof.proxy.mihomo_port or allocate_port(profile_id)
@@ -522,7 +600,7 @@ def session_list(profile_id: str | None = None) -> list[dict[str, Any]]:
     return sessions_mod.list_sessions(profile_id)
 
 
-def restore_last_session(*, headless: bool = False, open_check: bool = True) -> dict[str, Any]:
+def restore_last_session(*, headless: bool = False, open_check: bool = False) -> dict[str, Any]:
     """开机不必自启；手动调用以恢复上次仍标记为运行的会话。"""
     ids = db.list_last_running()
     results = []

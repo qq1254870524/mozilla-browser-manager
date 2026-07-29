@@ -3,8 +3,8 @@
 
 Official GitHub is often throttled in CN (~200KB/s, multi-hour, easy fail).
 This installer:
-  1) tries multiple mirror URLs
-  2) resumes .part files (HTTP Range)
+  1) probes ALL mirror channels in parallel and picks the fastest
+  2) multi-connection download + resumes .part files (HTTP Range)
   3) can install from a local zip
   4) never writes outside project ROOT
 

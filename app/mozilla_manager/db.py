@@ -423,6 +423,14 @@ def upsert_subscription(meta: dict[str, Any], *, ok: bool = True) -> None:
         )
 
 
+def delete_subscription_row(name: str) -> None:
+    """Remove subscription index row (filesystem delete is separate)."""
+    init_db()
+    with connect() as conn:
+        conn.execute("DELETE FROM subscriptions WHERE name=?", (name,))
+        conn.execute("DELETE FROM node_latency WHERE sub=?", (name,))
+
+
 def list_subscription_rows() -> list[dict[str, Any]]:
     init_db()
     with connect() as conn:

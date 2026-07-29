@@ -122,16 +122,23 @@ def _sanitize_config(data: dict[str, Any], port: int, node_name: str | None = No
         "allow-lan": False,
         "mode": "rule",
         "log-level": "info",
-        "ipv6": True,
+        "ipv6": False,  # dual-stack often stalls via flaky nodes; v4-first is stabler for browser
         "find-process-mode": "off",
         "external-controller": f"127.0.0.1:{port + 1000}",
         "secret": "",
+        # Keep long-lived browser sockets from being killed on brief upstream blips
+        "tcp-concurrent": True,
+        "global-client-fingerprint": "chrome",
+        "profile": {"store-selected": True, "store-fake-ip": True},
         "dns": {
             "enable": True,
             "listen": f"127.0.0.1:{port + 2000}",
-            "enhanced-mode": "fake-ip",
-            "fake-ip-range": "198.18.0.1/16",
-            "nameserver": ["8.8.8.8", "1.1.1.1"],
+            # redir-host avoids fake-ip surprises for tools probing mihomo DNS;
+            # browser via SOCKS still does its own resolve unless socks remote-dns.
+            "enhanced-mode": "redir-host",
+            "nameserver": ["8.8.8.8", "1.1.1.1", "208.67.222.222"],
+            "fallback": ["1.0.0.1", "8.8.4.4"],
+            "fallback-filter": {"geoip": True, "geoip-code": "CN", "ipcidr": ["240.0.0.0/4"]},
         },
         "proxies": proxies,
         "proxy-groups": groups,

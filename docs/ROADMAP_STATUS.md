@@ -2,6 +2,35 @@
 
 根目录：`/home/baoge/Mozilla`
 
+## v10.4 网络稳定性 ✅（2026-07-30）
+
+目标：修复「打开网页后又断网、换节点依旧」；保证代理不被误杀、Playwright 不跨线程损坏会话。
+
+| # | 项 | 状态 |
+|---|---|---|
+| 1 | watchdog 误杀 mihomo | ✅ 连续 miss + 不再 registry 直接 stop 代理 |
+| 2 | 跨线程 Playwright（tabs/CF/close） | ✅ `call_in_profile_thread` |
+| 3 | worker close 自死锁 | ✅ 同线程不 join self |
+| 4 | CF 误判 / 等待封顶 | ✅ |
+| 5 | QUIC over SOCKS 掉线 | ✅ `--disable-quic` |
+| 6 | mihomo 稳态参数 | ✅ redir-host / tcp-concurrent |
+| 7 | 版本 | `1.10.4-v10.4` |
+
+详见根目录 [CHANGELOG.md](../CHANGELOG.md)。
+
+---
+
+## v10.3 沉浸式 / 有网 / 不卡 / CF ✅（2026-07-30）
+
+| # | 项 | 状态 |
+|---|---|---|
+| 1 | 代理下 DoH-only 全军没网 | ✅ 跳过 secure DoH |
+| 2 | 缩放卡顿 | ✅ 默认不 lock_viewport；immersive soft |
+| 3 | CF 时刻准备 | ✅ auto_cf 默认 |
+| 4 | 最强反检测默认 | ✅ patchright + stealth_v6 + 无假鼠标 |
+
+---
+
 ## v10.1 细节增强 + 全量合规核对 ✅（2026-07-29）
 
 目标：增强现有功能细节，仔细核对 v1–v10 是否都满足条件。

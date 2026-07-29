@@ -10,7 +10,8 @@ rebrowser-patches 是 **Playwright/Puppeteer 驱动补丁源**，不是独立浏
 |---|---|
 | 补丁源码 | `runtime/patches/rebrowser-patches/` |
 | Python 驱动（已打补丁的 drop-in） | pip `rebrowser-playwright`（`.venv`） |
-| 可选自定义 Chromium 二进制 | `runtime/patches/rebrowser/chrome` |
+| 可选自定义 Chromium 二进制 | `runtime/patches/rebrowser/chrome`（或 `chrome.exe`） |
+| 默认内核挂接 | `runtime/patches/rebrowser/chrome.path`（安装时自动写入） |
 
 ## 选用
 
@@ -33,3 +34,13 @@ python -m mozilla_manager.cli create -n x --engine pw_chromium --patch rebrowser
 | 内核 | Chromium | Chromium |
 
 二者可在不同 Profile 上自由搭配。
+
+
+## Windows 自检说明
+
+doctor 中的 `rebrowser_custom_binary` **不是缺依赖**：
+
+- rebrowser 补丁在 pip 包 `rebrowser-playwright`（驱动层）
+- 不放置自定义 chrome 完全正常
+- 「下载依赖」会写入 `chrome.path` 指向 `runtime/browsers` 内最新 Chromium
+- 聚合项 `rebrowser_stack` / `patchright_stack` 为 OK 即补丁栈就绪

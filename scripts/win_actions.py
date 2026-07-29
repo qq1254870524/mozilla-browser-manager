@@ -107,6 +107,7 @@ def action_install() -> None:
     print("=" * 50)
     print("将安装：")
     print("  · Python 依赖（requirements.txt）")
+    print("  · 补丁栈：patchright + rebrowser-playwright + 源码")
     print("  · Chromium 浏览器内核（镜像+断点续传）")
     print("  · Camoufox（镜像+断点续传）")
     print("  · mihomo 代理核心（镜像+断点续传）")
@@ -128,6 +129,18 @@ def action_install() -> None:
     run_py([str(ROOT / "scripts" / "fetch_camoufox.py")], check=False)
     print("[补充] mihomo（镜像加速 + 断点续传）...")
     run_py([str(ROOT / "scripts" / "install_all_deps.py"), "--force-mihomo", "--skip-optional", "--skip-doctor"], check=False)
+    print("[补充] 补丁栈挂接（rebrowser / patchright）...")
+    run_py(
+        [
+            "-c",
+            "import importlib.util; from pathlib import Path; "
+            "p=Path('scripts')/'install_all_deps.py'; "
+            "s=importlib.util.spec_from_file_location('iad', p); "
+            "m=importlib.util.module_from_spec(s); s.loader.exec_module(m); "
+            "m.ensure_rebrowser_stack()",
+        ],
+        check=False,
+    )
     if code != 0:
         print("[警告] 主安装过程有错误，请向上滚动查看。可再运行一次「下载依赖」。")
     else:

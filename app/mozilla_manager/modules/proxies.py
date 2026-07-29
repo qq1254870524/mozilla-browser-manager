@@ -68,18 +68,33 @@ def parse_socks5_url(url: str) -> dict[str, Any]:
     raw = (url or "").strip()
     if not raw:
         raise ValueError("empty socks5 url")
-    if "://" not in raw:
-        raw = "socks5://" + raw
-    u = urlparse(raw)
-    if not u.hostname or not u.port:
-        raise ValueError(f"invalid socks5 url: {url}")
-    return {
-        "host": u.hostname,
-        "port": int(u.port),
-        "username": u.username or "",
-        "password": u.password or "",
-        "socks5": build_socks5_url(u.hostname, int(u.port), u.username, u.password),
-    }
+    try:
+        from mozilla_manager.engines.proxy_util import parse_proxy_server
+        parsed = parse_proxy_server(raw if "://" in raw else f"socks5://{raw}")
+        host = parsed["host"]
+        port = int(parsed["port"])
+        user = parsed.get("username") or ""
+        pwd = parsed.get("password") or ""
+        return {
+            "host": host,
+            "port": port,
+            "username": user,
+            "password": pwd,
+            "socks5": build_socks5_url(host, port, user, pwd),
+        }
+    except Exception:
+        if "://" not in raw:
+            raw = "socks5://" + raw
+        u = urlparse(raw)
+        if not u.hostname or u.port is None:
+            raise ValueError(f"invalid socks5 url: {url}")
+        return {
+            "host": u.hostname,
+            "port": int(u.port),
+            "username": u.username or "",
+            "password": u.password or "",
+            "socks5": build_socks5_url(u.hostname, int(u.port), u.username, u.password),
+        }
 
 
 def _normalize_item(item: dict[str, Any]) -> dict[str, Any]:

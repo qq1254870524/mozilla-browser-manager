@@ -119,19 +119,26 @@ v7
 - WebSocket 任务进度 /ws/jobs
 - 版本 1.10.0-v10
 
-### 桌面客户端（跨平台程序）
-- Windows / Ubuntu 同一套 Python 客户端
-- 启动形态：本地程序（pywebview 原生窗 / Tk 壳），自动托管模块化后端
-- Web 管理台仅作为内嵌 UI，业务模块仍独立：modules / api/routes / ui/js/modules
-- 入口：python -m mozilla_manager.client | scripts/run_client.sh | run_client.bat
-
-
 ### v10.1（已部署 2026-07-29）细节增强 + 全量合规
 - Camoufox 对齐：cookie 注入 / 标签页记忆 / WebRTC·DoH
 - UI：自动重绑开关、隐私、Cookie、合规核对按钮
 - `compliance` 审计 86/86；`backfill-meta` 旧环境默认值
 - 再次确认：独立 user_data_dir + 每浏览器出口 + launch 按 IP 重绑 tz/locale/geo
 
+### v10.3（已部署 2026-07-30）沉浸式 + 最强反检测
+- 沉浸式浏览器无标题栏（Windows Win32 去边框；Camoufox 紧凑标题栏）
+- 默认最强反检测：bundled Chromium + patchright + lock_viewport + stealth_v6 + humanize
+- 关窗自动保存标签页（修复“关闭只剩检测页”）
+- 标签自动保存 + tab_groups.last 回退恢复
+- API：POST /restore-max-stealth
+- 版本 1.10.3-v10.3
+
+
+### 桌面客户端（跨平台程序）
+- Windows / Ubuntu 同一套 Python 客户端
+- 启动形态：本地程序（pywebview 原生窗 / Tk 壳），自动托管模块化后端
+- Web 管理台仅作为内嵌 UI，业务模块仍独立：modules / api/routes / ui/js/modules
+- 入口：python -m mozilla_manager.client | scripts/run_client.sh | run_client.bat
 
 缺少添加socks5代理，主机 端口 账号 密码，还有配套的刷新ip链接。
 

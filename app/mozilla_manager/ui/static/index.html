@@ -179,7 +179,7 @@
       <section id="view-subs" class="card" style="display:none" data-module="subscriptions">
         <div class="toolbar">
           <input id="subUrl" type="url" style="max-width:480px" placeholder="订阅链接 URL"
-            value="https://liangxin.xyz/api/v1/liangxin?OwO=341f1230bbe176bbdd261497abf7da74" />
+            value="" placeholder="粘贴订阅链接（不会上传到 Git）" />
           <input id="subName" type="text" style="max-width:120px" value="default" placeholder="名称" />
           <button class="btn btn-primary btn-sm" id="btnImportSub">导入订阅</button>
           <button class="btn btn-ghost btn-sm" id="btnRefreshSub">更新当前</button>
@@ -453,11 +453,11 @@
           <label>CF 过盾</label>
           <div class="field">
             <label style="display:flex;gap:8px;align-items:center;color:#334155">
-              <input id="c_auto_cf" type="checkbox" />
+              <input id="c_auto_cf" type="checkbox" checked />
               <span>启动时自动过 Cloudflare / Turnstile（内置 harvester）</span>
             </label>
             <input id="c_cf_timeout" type="number" value="45" min="10" max="180" style="max-width:90px" title="超时秒" />
-            <span class="hint">秒 · 写入环境 meta.auto_cf，打开浏览器后对标签页自动处理</span>
+            <span class="hint">秒 · 默认开启：导航遇 CF/Turnstile 自动过盾（可取消）</span>
           </div>
           <label>标签页</label>
           <textarea id="c_tabs" rows="3" placeholder="每行一个 URL（可选）"></textarea>

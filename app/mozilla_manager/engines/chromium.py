@@ -10,11 +10,23 @@ from ..modules import cookies as cookies_mod
 from ..launch_gate import write_check_page
 from ..models import ChromiumPatch, LaunchResult, Profile
 from ..network.browser_only import browser_only_launch_env
-from ..paths import BROWSERS_DIR, PATCHES_DIR, ensure_layout
+from ..paths import BROWSERS_DIR, PATCHES_DIR, ROOT, ensure_layout
 from ..runtime_registry import mark_started, mark_stopped
 from ..store import ProfileStore
 from .base import EngineLauncher
 from .proxy_util import playwright_proxy
+from .native_ux import (
+    chromium_pointer_options,
+    native_cursor_init_script,
+    resolve_chromium_launch_binary,
+    want_lock_viewport,
+)
+from .immersive import (
+    apply_immersive_to_browser_pid,
+    chromium_immersive_args,
+    snapshot_http_tabs,
+    want_immersive,
+)
 
 _RUNS: dict[str, dict[str, Any]] = {}
 _LOCK = threading.Lock()
@@ -27,11 +39,57 @@ def get_run(profile_id: str) -> dict[str, Any] | None:
 
 
 def _pid_alive(pid: int | None) -> bool:
+    """Process liveness — Windows-safe (os.kill signal 0 is not always reliable)."""
     if not pid:
         return False
     try:
-        import os
-        os.kill(int(pid), 0)
+        pid = int(pid)
+    except Exception:
+        return False
+    if pid <= 0:
+        return False
+    import os
+    import sys
+
+    if sys.platform.startswith("win"):
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+            PROCESS_QUERY_INFORMATION = 0x0400
+            kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+            handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+            if not handle:
+                handle = kernel32.OpenProcess(PROCESS_QUERY_INFORMATION, False, pid)
+            if handle:
+                # Still running? GetExitCodeProcess == STILL_ACTIVE (259)
+                exit_code = wintypes.DWORD()
+                ok = kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code))
+                kernel32.CloseHandle(handle)
+                if ok and int(exit_code.value) == 259:
+                    return True
+                if ok and int(exit_code.value) != 259:
+                    return False
+                return True
+            # OpenProcess failed — distinguish not-found vs access
+            err = int(kernel32.GetLastError() or 0)
+            # 5 = ACCESS_DENIED → exists; 87/87 param; 87 already; 87
+            if err in (5,):
+                return True
+            return False
+        except Exception:
+            pass
+        # fallback os.kill(0)
+        try:
+            os.kill(pid, 0)
+            return True
+        except OSError:
+            return False
+        except Exception:
+            return False
+    try:
+        os.kill(pid, 0)
         return True
     except ProcessLookupError:
         return False
@@ -61,40 +119,76 @@ def _discover_browser_pid(user_data_dir: str | None) -> int | None:
                     return int(tail)
     except Exception:
         pass
+    # Linux /proc scan
     try:
-        for proc in Path("/proc").iterdir():
-            if not proc.name.isdigit():
-                continue
-            try:
-                raw = (proc / "cmdline").read_bytes()
-            except Exception:
-                continue
-            if not raw:
-                continue
-            parts = [x.decode("utf-8", "ignore") for x in raw.split(bytes([0])) if x]
-            if not parts:
-                continue
-            exe = Path(parts[0]).name.lower()
-            joined = " ".join(parts).lower()
-            if not any(tok in exe or tok in joined[:120] for tok in ("chrome", "chromium", "msedge", "camoufox", "firefox")):
-                continue
-            if ud.lower() not in joined:
-                continue
-            return int(proc.name)
+        proc_root = Path("/proc")
+        if proc_root.exists():
+            for proc in proc_root.iterdir():
+                if not proc.name.isdigit():
+                    continue
+                try:
+                    raw = (proc / "cmdline").read_bytes()
+                except Exception:
+                    continue
+                if not raw:
+                    continue
+                parts = [x.decode("utf-8", "ignore") for x in raw.split(bytes([0])) if x]
+                if not parts:
+                    continue
+                exe = Path(parts[0]).name.lower()
+                joined = " ".join(parts).lower()
+                if not any(tok in exe or tok in joined[:120] for tok in ("chrome", "chromium", "msedge", "camoufox", "firefox")):
+                    continue
+                if ud.lower() not in joined:
+                    continue
+                return int(proc.name)
     except Exception:
         pass
+    # Windows: SingletonSocket / lock already tried; best-effort via tasklist is too heavy.
     return None
 
 
 def is_run_alive(run: dict[str, Any] | None) -> bool:
-    """Thread-safe liveness: never touch Playwright objects cross-thread."""
+    """Thread-safe liveness: never touch Playwright objects cross-thread.
+
+    Policy (network-first):
+      - `closed=True` (context close / stop) → dead
+      - otherwise treat as ALIVE unless browser pid is *repeatedly* confirmed dead
+        AND rediscovery fails for several watchdog cycles
+      - false-dead must never happen: it stops mihomo while the window is still open
+        ("打开网页后断网")
+    """
     if not run or run.get("closed"):
         return False
+    try:
+        import time as _t
+        started = float(run.get("started_mono") or 0)
+        if started and (_t.monotonic() - started) < 15.0:
+            return True
+    except Exception:
+        pass
     pid = run.get("browser_pid") or run.get("pid")
-    if pid:
-        return _pid_alive(int(pid))
-    # if no pid yet, treat in-memory non-closed run as alive (close event will clear)
-    return True
+    if not pid:
+        # no pid: trust in-memory run until close event
+        return True
+    if _pid_alive(int(pid)):
+        run["_dead_hits"] = 0
+        return True
+    # try rediscover
+    try:
+        bp = _discover_browser_pid(run.get("user_data"))
+        if bp and _pid_alive(int(bp)):
+            run["browser_pid"] = bp
+            run["_dead_hits"] = 0
+            return True
+    except Exception:
+        pass
+    hits = int(run.get("_dead_hits") or 0) + 1
+    run["_dead_hits"] = hits
+    # ~5 watchdog cycles * 3s ≈ 15s of confirmed death before reap
+    if hits < 5:
+        return True
+    return False
 
 
 def live_profile_ids() -> set[str]:
@@ -113,15 +207,31 @@ def live_profile_ids() -> set[str]:
         else:
             dead.append(pid)
     for pid in dead:
-        try:
-            _finalize_stop(pid, reason="reconcile_dead")
-        except Exception:
-            with _LOCK:
-                _RUNS.pop(pid, None)
+        # Finalize on the profile worker thread — never raw watchdog thread CDP calls.
+        def _stop(p=pid):
             try:
-                mark_stopped(pid)
+                from mozilla_manager.engines.sync_bridge import call_in_profile_thread
+
+                call_in_profile_thread(
+                    p,
+                    lambda: _finalize_stop(p, reason="reconcile_dead"),
+                    timeout=60.0,
+                )
             except Exception:
-                pass
+                try:
+                    _finalize_stop(p, reason="reconcile_dead")
+                except Exception:
+                    with _LOCK:
+                        _RUNS.pop(p, None)
+                    try:
+                        mark_stopped(p)
+                    except Exception:
+                        pass
+
+        try:
+            threading.Thread(target=_stop, name=f"mm-reap-{pid[:16]}", daemon=True).start()
+        except Exception:
+            _stop()
     return alive
 
 
@@ -139,19 +249,24 @@ def _finalize_stop(profile_id: str, *, reason: str = "stop") -> None:
     try:
         with _LOCK:
             run = _RUNS.pop(profile_id, None)
-        # best-effort remember tabs if context still up
-        if run and reason != "context_close":
+        # remember tabs always (manual window close used to skip → empty session)
+        if run:
             try:
-                ctx = run.get("context")
-                urls = []
-                if ctx is not None:
-                    for page in getattr(ctx, "pages", []) or []:
+                urls = list(run.get("saved_tabs") or [])
+                if not urls:
+                    ctx = run.get("context")
+                    if ctx is not None:
                         try:
-                            u = page.url
-                            if u and str(u).startswith("http"):
-                                urls.append(u)
+                            urls = snapshot_http_tabs(ctx)
                         except Exception:
-                            pass
+                            urls = []
+                            for page in getattr(ctx, "pages", []) or []:
+                                try:
+                                    u = page.url
+                                    if u and str(u).startswith("http"):
+                                        urls.append(u)
+                                except Exception:
+                                    pass
                 if urls:
                     store = ProfileStore()
                     prof = store.get(profile_id)
@@ -198,15 +313,117 @@ def _finalize_stop(profile_id: str, *, reason: str = "stop") -> None:
         _STOPPING.discard(profile_id)
 
 
+def _persist_tabs_now(profile_id: str, urls: list[str]) -> None:
+    if not urls:
+        return
+    try:
+        store = ProfileStore()
+        prof = store.get(profile_id)
+        meta = dict(prof.meta or {})
+        meta["tabs"] = list(urls)
+        groups = [g for g in list(meta.get("tab_groups") or []) if g.get("name") != "last"]
+        groups.insert(0, {"name": "last", "urls": list(urls)})
+        meta["tab_groups"] = groups[:20]
+        store.update(profile_id, meta=meta)
+    except Exception:
+        pass
+
+
+def _install_tab_autosave(profile_id: str, context: Any) -> None:
+    """Debounced save of http(s) tabs so manual close never loses session.
+
+    CRITICAL: snapshot_http_tabs touches Playwright page objects. Must run on the
+    profile BrowserWorker thread. A raw threading.Timer calling page.url used to
+    corrupt the CDP session → browser looks fine for one navigation then "offline".
+    """
+    timer_box: dict[str, Any] = {"t": None}
+    lock = threading.Lock()
+    inflight = {"on": False}
+
+    def _flush_on_worker() -> None:
+        try:
+            urls = snapshot_http_tabs(context)
+            with _LOCK:
+                run = _RUNS.get(profile_id)
+                if run is not None:
+                    run["saved_tabs"] = urls
+            _persist_tabs_now(profile_id, urls)
+        except Exception:
+            pass
+
+    def _fire() -> None:
+        with lock:
+            timer_box["t"] = None
+            if inflight["on"]:
+                return
+            inflight["on"] = True
+        try:
+            from mozilla_manager.engines.sync_bridge import call_in_profile_thread
+
+            # Re-entrant if already on worker; otherwise post back.
+            call_in_profile_thread(profile_id, _flush_on_worker, timeout=15.0)
+        except Exception:
+            pass
+        finally:
+            with lock:
+                inflight["on"] = False
+
+    def _schedule(_page: Any = None) -> None:
+        with lock:
+            old = timer_box.get("t")
+            if old is not None:
+                try:
+                    old.cancel()
+                except Exception:
+                    pass
+            tim = threading.Timer(1.5, _fire)
+            tim.daemon = True
+            timer_box["t"] = tim
+            tim.start()
+
+    def _on_page(page: Any) -> None:
+        try:
+            page.on("framenavigated", lambda frame: _schedule(page) if frame == page.main_frame else None)
+            page.on("load", lambda: _schedule(page))
+        except Exception:
+            pass
+        _schedule(page)
+
+    try:
+        context.on("page", _on_page)
+    except Exception:
+        pass
+    try:
+        for pg in list(getattr(context, "pages", []) or []):
+            _on_page(pg)
+    except Exception:
+        pass
+
+
 def _install_lifecycle_watch(profile_id: str, context: Any) -> None:
-    """When user closes the real browser window, panel must flip to 已停止."""
+    """User closes browser → save tabs + flip panel to 已停止."""
 
     def _on_close() -> None:
-        # flip flags immediately so UI reconcile sees stopped even before cleanup finishes
+        # Prefer last autosaved tabs — context may already be dying; avoid extra
+        # cross-thread Playwright reads that can wedge the driver.
+        urls: list[str] = []
         with _LOCK:
             run = _RUNS.get(profile_id)
             if run is not None:
                 run["closed"] = True
+                urls = list(run.get("saved_tabs") or [])
+        if not urls:
+            try:
+                urls = snapshot_http_tabs(context)
+            except Exception:
+                urls = []
+            if urls:
+                with _LOCK:
+                    run = _RUNS.get(profile_id)
+                    if run is not None:
+                        run["saved_tabs"] = urls
+        if urls:
+            _persist_tabs_now(profile_id, urls)
         try:
             mark_stopped(profile_id)
         except Exception:
@@ -214,12 +431,22 @@ def _install_lifecycle_watch(profile_id: str, context: Any) -> None:
 
         def _job() -> None:
             try:
-                _finalize_stop(profile_id, reason="context_close")
+                # Playwright close/stop MUST run on the profile worker thread.
+                from mozilla_manager.engines.sync_bridge import call_in_profile_thread
+
+                call_in_profile_thread(
+                    profile_id,
+                    lambda: _finalize_stop(profile_id, reason="context_close"),
+                    timeout=60.0,
+                )
             except Exception:
                 try:
-                    mark_stopped(profile_id)
+                    _finalize_stop(profile_id, reason="context_close")
                 except Exception:
-                    pass
+                    try:
+                        mark_stopped(profile_id)
+                    except Exception:
+                        pass
 
         threading.Thread(target=_job, name=f"mm-stop-{profile_id[:16]}", daemon=True).start()
 
@@ -239,7 +466,7 @@ def _is_http_url(url: str | None) -> bool:
 
 
 def _page_looks_like_cf(page: Any) -> bool:
-    """Fast non-blocking CF challenge detect."""
+    """Fast CF challenge detect — strict to avoid false positives on normal sites."""
     try:
         url = str(getattr(page, "url", "") or "")
     except Exception:
@@ -247,18 +474,22 @@ def _page_looks_like_cf(page: Any) -> bool:
     if not _is_http_url(url):
         return False
     low = url.lower()
-    if "challenges.cloudflare.com" in low or "/cdn-cgi/challenge" in low:
+    if "challenges.cloudflare.com" in low or "/cdn-cgi/challenge" in low or "/cdn-cgi/chl" in low:
         return True
     try:
         hit = page.evaluate(
             """() => {
-  const t = (document.title || '').toLowerCase();
-  if (t.includes('just a moment') || t.includes('attention required') || t.includes('cloudflare')) return true;
-  if (document.querySelector('#challenge-form, #challenge-running, #cf-challenge-running, .cf-browser-verification')) return true;
-  if (document.querySelector('iframe[src*="challenges.cloudflare"], iframe[src*="turnstile"]')) return true;
-  if (document.querySelector('input[name="cf-turnstile-response"], .cf-turnstile, [data-sitekey]')) return true;
-  const b = (document.body && (document.body.innerText || '')) || '';
-  if (/checking your browser|enable javascript and cookies|cloudflare/i.test(b.slice(0, 800))) return true;
+  const t = (document.title || '').toLowerCase().trim();
+  // title-only strong signals
+  if (t === 'just a moment...' || t === 'just a moment' || t.startsWith('just a moment')) return true;
+  if (t.includes('attention required') || t.includes('please wait') && t.includes('cloudflare')) return true;
+  // DOM challenge markers (high confidence)
+  if (document.querySelector('#challenge-form, #challenge-running, #cf-challenge-running, .cf-browser-verification, #cf-wrapper, .challenge-platform')) return true;
+  if (document.querySelector('iframe[src*="challenges.cloudflare"], iframe[src*="/cdn-cgi/challenge"]')) return true;
+  if (document.querySelector('input[name="cf-turnstile-response"], .cf-turnstile, div.cf-turnstile, [data-sitekey]')) return true;
+  // body text — require challenge phrasing, NOT bare word "cloudflare" (too many false hits)
+  const b = ((document.body && (document.body.innerText || '')) || '').slice(0, 1200).toLowerCase();
+  if (/checking your browser before|verify you are human|enable javascript and cookies to continue|performing security verification|sorry, you have been blocked/i.test(b)) return true;
   return false;
 }"""
         )
@@ -268,6 +499,7 @@ def _page_looks_like_cf(page: Any) -> bool:
 
 
 def _pass_cf_if_needed(page: Any, *, timeout: float = 45.0, harvest: bool = True) -> dict[str, Any]:
+    """Detect+pass CF. Must run on the profile browser worker thread only."""
     from mozilla_manager.modules.turnstile import pass_cf_on_page, detect_cf
 
     try:
@@ -276,49 +508,153 @@ def _pass_cf_if_needed(page: Any, *, timeout: float = 45.0, harvest: bool = True
         url = ""
     if not _is_http_url(url):
         return {"ok": True, "skipped": True, "reason": "non-http", "url": url}
+    # Fast local heuristic first — avoid expensive harvester on normal pages
+    looks = False
     try:
-        det = detect_cf(page)
+        looks = _page_looks_like_cf(page)
     except Exception:
-        det = {"cf": _page_looks_like_cf(page)}
-    if not det.get("cf") and not _page_looks_like_cf(page):
-        return {"ok": True, "skipped": True, "reason": "no-cf", "url": url, "detect": det}
+        looks = False
+    if not looks:
+        try:
+            det = detect_cf(page)
+        except Exception:
+            det = {"cf": False}
+        if not det.get("cf"):
+            return {"ok": True, "skipped": True, "reason": "no-cf", "url": url, "detect": det}
     try:
-        return pass_cf_on_page(page, timeout=timeout, harvest=harvest)
+        # Cap wait so a stuck challenge cannot freeze the browser worker forever
+        to = min(float(timeout or 45), 20.0)
+        return pass_cf_on_page(page, timeout=to, harvest=harvest)
     except Exception as e:
         return {"ok": False, "error": str(e), "url": url}
 
 
 def _install_cf_watch(context: Any, profile: Profile) -> None:
-    """Always-ready CF: on every http(s) navigation, detect then pass."""
-    meta = profile.meta or {}
-    if not (meta.get("auto_cf") or meta.get("pass_cf")):
-        return
-    timeout = float(meta.get("cf_timeout") or 45)
-    # de-dupe concurrent handlers per page
-    busy: set[int] = set()
+    """Always-ready CF on navigations — thread-safe for Playwright Sync API.
 
-    def _handle(page: Any) -> None:
+    CRITICAL: never call page.* from threading.Timer / random threads.
+    Playwright Sync is bound to the profile BrowserWorker thread; cross-thread
+    CDP calls corrupt the session and look like "opened one page then offline".
+    Delayed rechecks are posted back onto the same worker via sync_bridge.
+    """
+    meta = dict(profile.meta or {})
+    enabled = True
+    if "auto_cf" in meta or "pass_cf" in meta:
+        enabled = bool(meta.get("auto_cf") or meta.get("pass_cf"))
+    if meta.get("auto_cf") is False and meta.get("pass_cf") is not True:
+        enabled = False
+    if not enabled:
+        return
+
+    timeout = float(meta.get("cf_timeout") or 45)
+    harvest_default = meta.get("cf_harvest")
+    if harvest_default is None:
+        harvest_default = True
+    profile_id = str(profile.id)
+    busy: set[int] = set()
+    last_try: dict[int, float] = {}
+    scheduled: set[str] = set()
+    lock = threading.Lock()
+
+    def _handle(page: Any, *, reason: str = "nav") -> None:
+        import time as _time
+
         try:
             pid = id(page)
-            if pid in busy:
-                return
-            busy.add(pid)
+            now = _time.time()
+            with lock:
+                prev = float(last_try.get(pid) or 0)
+                gap = 1.0 if reason.startswith("delay") else 2.0
+                if now - prev < gap:
+                    return
+                if pid in busy:
+                    return
+                busy.add(pid)
+                last_try[pid] = now
             try:
-                _pass_cf_if_needed(page, timeout=timeout, harvest=True)
+                # Delayed recheck: only spend time when page still looks like CF
+                if reason.startswith("delay"):
+                    try:
+                        if not _page_looks_like_cf(page):
+                            return
+                    except Exception:
+                        return
+                else:
+                    # Immediate path also prefers cheap heuristic before heavy detect
+                    try:
+                        url = str(getattr(page, "url", "") or "")
+                    except Exception:
+                        url = ""
+                    if not _is_http_url(url):
+                        return
+                _pass_cf_if_needed(page, timeout=timeout, harvest=bool(harvest_default))
             finally:
-                busy.discard(pid)
+                with lock:
+                    busy.discard(pid)
         except Exception:
             pass
+
+    def _post_to_worker(page: Any, reason: str, delay: float) -> None:
+        """Run CF check on the profile Playwright thread after delay."""
+        key = f"{id(page)}:{reason}:{delay}"
+        with lock:
+            if key in scheduled:
+                return
+            scheduled.add(key)
+
+        def _timer_fire(p=page, r=reason, k=key) -> None:
+            try:
+                from mozilla_manager.engines.sync_bridge import call_in_profile_thread
+
+                def _job():
+                    try:
+                        _handle(p, reason=r)
+                    finally:
+                        with lock:
+                            scheduled.discard(k)
+
+                call_in_profile_thread(profile_id, _job, timeout=max(45.0, min(timeout, 20.0) + 15))
+            except Exception:
+                with lock:
+                    scheduled.discard(k)
+
+        try:
+            tim = threading.Timer(float(delay), _timer_fire)
+            tim.daemon = True
+            tim.start()
+        except Exception:
+            with lock:
+                scheduled.discard(key)
+
+    def _handle_with_retries(page: Any) -> None:
+        # immediate check only when already on worker during event pump / launch
+        try:
+            from mozilla_manager.engines.sync_bridge import get_worker
+            import threading as _th
+
+            w = get_worker(profile_id)
+            on_worker = _th.current_thread() is getattr(w, "_thread", None)
+        except Exception:
+            on_worker = False
+        if on_worker:
+            _handle(page, reason="nav")
+        else:
+            _post_to_worker(page, reason="nav-post", delay=0.05)
+        # late CF paint: re-check on SAME worker, not raw Timer thread
+        for delay in (1.5, 3.5):
+            _post_to_worker(page, reason=f"delay-{delay}", delay=delay)
 
     def _on_page(page: Any) -> None:
         try:
-            page.on("load", lambda: _handle(page))
-            page.on("framenavigated", lambda frame: _handle(page) if frame == page.main_frame else None)
+            page.on("load", lambda: _handle_with_retries(page))
+            page.on(
+                "framenavigated",
+                lambda frame: _handle_with_retries(page) if frame == page.main_frame else None,
+            )
         except Exception:
             pass
-        # also check current document once
         try:
-            _handle(page)
+            _handle_with_retries(page)
         except Exception:
             pass
 
@@ -326,7 +662,6 @@ def _install_cf_watch(context: Any, profile: Profile) -> None:
         context.on("page", _on_page)
     except Exception:
         pass
-    # attach to existing pages
     try:
         for pg in list(getattr(context, "pages", []) or []):
             _on_page(pg)
@@ -334,35 +669,179 @@ def _install_cf_watch(context: Any, profile: Profile) -> None:
         pass
 
 
-def _stable_chromium_args(extra: list[str] | None = None) -> list[str]:
+def _stable_chromium_args(
+    extra: list[str] | None = None,
+    *,
+    meta: dict[str, Any] | None = None,
+    headless: bool = False,
+    viewport_width: int | None = None,
+    viewport_height: int | None = None,
+) -> list[str]:
+    """Chromium flags — default = max anti-detect.
+
+    Max stealth (default):
+      - window size locked to fingerprint viewport (screen/window match)
+      - no --start-maximized (maximize desyncs outer size vs spoofed screen)
+    Comfort opt-in (meta.stealth_level=comfort | native_window | lock_viewport=false):
+      - free resize / optional maximize
+    """
+    meta = meta or {}
     args = [
         "--disable-blink-features=AutomationControlled",
         "--no-first-run",
         "--no-default-browser-check",
         "--disable-dev-shm-usage",
+        # Remove "Chrome is being controlled by automated test software" infobar residue
+        "--disable-infobars",
+        "--disable-features=AutomationControlled,TranslateUI",
+        # QUIC/HTTP3 over SOCKS5/mihomo is flaky → first page ok then subsequent navs fail
+        "--disable-quic",
     ]
+    try:
+        for a in chromium_immersive_args(
+            meta,
+            headless=headless,
+            width=viewport_width or (meta.get("viewport_width") if meta else None),
+            height=viewport_height or (meta.get("viewport_height") if meta else None),
+        ):
+            if a not in args:
+                args.append(a)
+    except Exception:
+        pass
+    # Window geometry: match fingerprint by default (strongest)
+    if not headless:
+        lock = want_lock_viewport(meta)
+        want_max = meta.get("window_maximized")
+        if want_max is None:
+            # max stealth: never maximize by default (size must match FP)
+            want_max = False if lock else True
+        if want_max and not lock:
+            args.append("--start-maximized")
+        else:
+            try:
+                w = int(
+                    meta.get("window_width")
+                    or viewport_width
+                    or meta.get("viewport_width")
+                    or 1920
+                )
+                h = int(
+                    meta.get("window_height")
+                    or viewport_height
+                    or meta.get("viewport_height")
+                    or 1080
+                )
+                args.append(f"--window-size={max(320, w)},{max(240, h)}")
+            except Exception:
+                args.append("--window-size=1920,1080")
     # WSL / Linux containers often need these to keep the window alive
     import platform as _plat
     if _plat.system() == "Linux":
-        args.extend(["--no-sandbox", "--disable-gpu", "--disable-software-rasterizer"])
+        # On real desktop Linux with GPU, keep GPU; only force off under obvious container/WSL without display accel
+        # Still keep no-sandbox for compatibility in many lab setups.
+        args.append("--no-sandbox")
+        if os.environ.get("MOZILLA_DISABLE_GPU") == "1" or os.environ.get("WSL_DISTRO_NAME"):
+            # WSLg can use GPU; allow override. Default: do not disable GPU (looks blurry/boxed).
+            if os.environ.get("MOZILLA_DISABLE_GPU") == "1":
+                args.extend(["--disable-gpu", "--disable-software-rasterizer"])
     if extra:
-        args.extend(extra)
-    return args
+        # de-dup while preserving order
+        seen = set(args)
+        for a in extra:
+            if a not in seen:
+                args.append(a)
+                seen.add(a)
+    # Chromium keeps only the LAST --disable-features=... ; merge them all
+    feat_key = "--disable-features="
+    feats: list[str] = []
+    merged: list[str] = []
+    for a in args:
+        if a.startswith(feat_key):
+            for part in a[len(feat_key):].split(","):
+                part = part.strip()
+                if part and part not in feats:
+                    feats.append(part)
+        else:
+            merged.append(a)
+    if feats:
+        merged.append(feat_key + ",".join(feats))
+    return merged
+
+
+def _viewport_launch_options(env, meta: dict[str, Any] | None, *, headless: bool) -> dict[str, Any]:
+    """Return viewport-related kwargs for launch_persistent_context.
+
+    **Default = max anti-detect**: lock viewport to env fingerprint size so
+    window.innerWidth/screen metrics stay consistent with stealth bundle.
+
+    Comfort opt-out: meta.lock_viewport=false | stealth_level=comfort | native_window=true
+    → no_viewport (content fills freely resized window).
+    """
+    meta = meta or {}
+    lock = want_lock_viewport(meta)
+    if lock:
+        w = int(getattr(env, "viewport_width", None) or meta.get("viewport_width") or 1920)
+        h = int(getattr(env, "viewport_height", None) or meta.get("viewport_height") or 1080)
+        return {"viewport": {"width": max(320, w), "height": max(240, h)}, "no_viewport": False}
+    return {"no_viewport": True}
 
 
 
 
 def _rebrowser_executable() -> str | None:
-    """Optional custom chromium binary under runtime/patches/rebrowser/."""
-    candidates = [
-        PATCHES_DIR / "rebrowser" / "chrome",
-        PATCHES_DIR / "rebrowser" / "chrome.exe",
-        PATCHES_DIR / "rebrowser" / "chromium",
-    ]
-    for c in candidates:
-        if c.exists():
-            return str(c)
+    """Resolve Chromium binary for rebrowser mode.
+
+    Priority:
+      1) custom binary under runtime/patches/rebrowser/
+      2) chrome.path pointer (written by install)
+      3) newest bundled chromium under runtime/browsers/
+    Custom binary is optional — patches live in rebrowser-playwright driver.
+    """
+    for name in ("chrome", "chrome.exe", "chromium"):
+        c = PATCHES_DIR / "rebrowser" / name
+        if c.is_file() and c.stat().st_size > 0:
+            return str(c.resolve())
+
+    path_file = PATCHES_DIR / "rebrowser" / "chrome.path"
+    if path_file.is_file():
+        try:
+            line = path_file.read_text(encoding="utf-8").strip().splitlines()[0].strip()
+            if line:
+                p = Path(line)
+                if not p.is_absolute():
+                    p = (ROOT / line).resolve()
+                if p.is_file():
+                    return str(p)
+        except Exception:
+            pass
+
+    if BROWSERS_DIR.exists():
+        found: list[Path] = []
+        for pattern in (
+            "chromium-*/chrome-win64/chrome.exe",
+            "chromium-*/chrome-win/chrome.exe",
+            "chromium-*/chrome-linux64/chrome",
+            "chromium-*/chrome-linux/chrome",
+            "chromium-*/chrome-mac*/Chromium",
+            "chromium-*/chrome-mac/Chromium",
+        ):
+            found.extend(BROWSERS_DIR.glob(pattern))
+        found = [p for p in found if p.is_file()]
+
+        def rev_key(p: Path) -> int:
+            for part in p.parts:
+                if part.startswith("chromium-"):
+                    try:
+                        return int(part.split("-", 1)[1])
+                    except Exception:
+                        return 0
+            return 0
+
+        if found:
+            found.sort(key=rev_key, reverse=True)
+            return str(found[0].resolve())
     return None
+
 
 
 def _import_sync_playwright(patch: ChromiumPatch):
@@ -394,7 +873,7 @@ def _import_sync_playwright(patch: ChromiumPatch):
 class ChromiumLauncher(EngineLauncher):
     name = "chromium"
 
-    def launch(self, profile: Profile, *, headless: bool = False, open_check: bool = True) -> LaunchResult:
+    def launch(self, profile: Profile, *, headless: bool = False, open_check: bool | None = None) -> LaunchResult:
         ensure_layout()
         store = ProfileStore()
         user_data = str(store.abs_user_data(profile))
@@ -415,19 +894,44 @@ class ChromiumLauncher(EngineLauncher):
         with browser_only_launch_env(profile) as pol:
             pw = sync_playwright().start()
             try:
+                meta0 = dict(profile.meta or {})
+                # 默认不打开检测页；需要时 meta.open_check=true
+                if open_check is None:
+                    if "open_check" in meta0:
+                        open_check = bool(meta0.get("open_check"))
+                    else:
+                        open_check = False
+                # 默认捆绑 Chromium（最强反检测）；系统 Chrome 仅 comfort / use_system_chrome
+                bin_opts = resolve_chromium_launch_binary(meta0)
+                browser_label = bin_opts.pop("_browser_label", None) or "bundled-chromium"
                 launch_args: dict[str, Any] = dict(
                     user_data_dir=user_data,
                     headless=headless,
                     proxy=proxy,
                     locale=env.locale,
                     timezone_id=env.timezone_id,
-                    args=_stable_chromium_args(list(privacy_launch_args(profile.meta or {}) or [])),
-                    viewport={"width": env.viewport_width or 1280, "height": env.viewport_height or 720},
+                    args=_stable_chromium_args(
+                        list(
+                            privacy_launch_args(
+                                meta0,
+                                has_proxy=bool(proxy),
+                                proxy_mode=str(getattr(profile.proxy, "mode", None) or ""),
+                            )
+                            or []
+                        ),
+                        meta=meta0,
+                        headless=headless,
+                        viewport_width=getattr(env, "viewport_width", None),
+                        viewport_height=getattr(env, "viewport_height", None),
+                    ),
+                    # 默认锁定指纹视口（screen/window 一致）；comfort 可 no_viewport
+                    **_viewport_launch_options(env, meta0, headless=headless),
                     # 隐藏自动化特征；只写一次，避免 keyword argument repeated
                     ignore_default_args=["--enable-automation"],
                     handle_sigint=False,
                     handle_sigterm=False,
                     handle_sighup=False,
+                    **chromium_pointer_options(meta0),
                 )
                 # v3 profile-level extensions
                 try:
@@ -447,13 +951,21 @@ class ChromiumLauncher(EngineLauncher):
                         launch_args["ignore_default_args"] = prev
                 except Exception:
                     pass
+                # Binary priority: rebrowser custom > explicit path > (opt-in system Chrome) > bundled (max stealth)
                 if executable:
                     launch_args["executable_path"] = executable
-                # Patchright / pw_chromium network fix
+                    launch_args.pop("channel", None)
+                else:
+                    if bin_opts.get("executable_path"):
+                        launch_args["executable_path"] = bin_opts["executable_path"]
+                        launch_args.pop("channel", None)
+                    elif bin_opts.get("channel"):
+                        launch_args["channel"] = bin_opts["channel"]
+                        launch_args.pop("executable_path", None)
+                # Patchright default: use its managed bundled Chromium (strongest + patched)
                 if profile.chromium_patch == ChromiumPatch.PATCHRIGHT:
-                    # Force playwright-managed browser for patchright
-                    if "executable_path" not in launch_args:
-                        launch_args["executable_path"] = None  # let sync_playwright handle it
+                    if not launch_args.get("executable_path") and not launch_args.get("channel"):
+                        launch_args.pop("executable_path", None)
                 ua = env.user_agent or (env.fingerprint.user_agent if env.fingerprint else None)
                 if ua:
                     launch_args["user_agent"] = ua
@@ -465,7 +977,22 @@ class ChromiumLauncher(EngineLauncher):
                     }
                     launch_args["permissions"] = list(env.permissions)
 
-                context = pw.chromium.launch_persistent_context(**launch_args)
+                try:
+                    context = pw.chromium.launch_persistent_context(**launch_args)
+                except Exception as launch_err:
+                    # 系统 Chrome 与驱动版本不匹配时回退到自带 Chromium
+                    if launch_args.get("executable_path") or launch_args.get("channel"):
+                        launch_args.pop("executable_path", None)
+                        launch_args.pop("channel", None)
+                        browser_label = f"bundled-fallback ({launch_err})"
+                        context = pw.chromium.launch_persistent_context(**launch_args)
+                    else:
+                        raise
+                # Native OS cursor (strip software/humanize overlays)
+                try:
+                    context.add_init_script(native_cursor_init_script())
+                except Exception:
+                    pass
                 # v2 fingerprint init script (baseline)
                 apply_fingerprint_to_context(context, env.fingerprint)
                 # v6 stealth matrix (24+ dims, fixed noise, TLS persona marker)
@@ -500,6 +1027,12 @@ class ChromiumLauncher(EngineLauncher):
                 # v4 restore remembered tabs / tab groups (skip if only check page)
                 try:
                     tabs = list((profile.meta or {}).get("tabs") or [])
+                    if not tabs:
+                        # fallback last tab group
+                        for g in list((profile.meta or {}).get("tab_groups") or []):
+                            if g.get("name") == "last" and g.get("urls"):
+                                tabs = list(g.get("urls") or [])
+                                break
                     # open check page first optionally
                     if open_check:
                         uri = write_check_page(profile)
@@ -513,7 +1046,11 @@ class ChromiumLauncher(EngineLauncher):
                         except Exception:
                             pass
                     if not tabs and not open_check:
-                        pass
+                        # 原生手感：新标签空白页，而不是检测灰卡片
+                        try:
+                            page.goto("about:blank", wait_until="domcontentloaded")
+                        except Exception:
+                            pass
                 except Exception:
                     if open_check:
                         try:
@@ -548,7 +1085,22 @@ class ChromiumLauncher(EngineLauncher):
                         bpid = _discover_browser_pid(user_data)
                     except Exception:
                         bpid = None
+                # v10.3: strip OS title bar (Windows) for immersive window
+                immersive_info = {}
+                try:
+                    if bpid and want_immersive(meta0):
+                        immersive_info = apply_immersive_to_browser_pid(bpid, meta0)
+                        # retry once shortly after if pid just spawned
+                        if not immersive_info.get("ok"):
+                            import time as _t2
+                            _t2.sleep(0.35)
+                            bpid2 = _discover_browser_pid(user_data) or bpid
+                            bpid = bpid2
+                            immersive_info = apply_immersive_to_browser_pid(bpid, meta0)
+                except Exception as _ie:
+                    immersive_info = {"ok": False, "error": str(_ie)}
                 with _LOCK:
+                    import time as _tmono
                     _RUNS[profile.id] = {
                         "pw": pw,
                         "context": context,
@@ -558,18 +1110,29 @@ class ChromiumLauncher(EngineLauncher):
                         "user_data": user_data,
                         "browser_pid": bpid,
                         "closed": False,
+                        "immersive": bool(want_immersive(meta0)),
+                        "saved_tabs": snapshot_http_tabs(context),
+                        "started_mono": _tmono.monotonic(),
+                        "_dead_hits": 0,
                     }
                 mark_started(
                     profile.id,
                     {
                         "driver": driver,
                         "engine": "chromium",
+                        "browser": browser_label or "bundled",
                         "user_data": profile.user_data_dir,
                         "browser_only": bool(pol.get("browser_only")),
                         "fingerprint": env.fingerprint.template_id if env.fingerprint else None,
                         "browser_pid": bpid,
+                        "immersive": bool(want_immersive(meta0)),
+                        "stealth_level": (meta0 or {}).get("stealth_level") or "max",
                     },
                 )
+                try:
+                    _install_tab_autosave(profile.id, context)
+                except Exception:
+                    pass
                 try:
                     _install_lifecycle_watch(profile.id, context)
                 except Exception:
