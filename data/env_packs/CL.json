@@ -1,0 +1,21 @@
+{
+  "timezone_id": "America/Santiago",
+  "locale": "es-CL",
+  "languages": [
+    "es-CL",
+    "es",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Santiago",
+      "lat": -33.4489,
+      "lon": -70.6693
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

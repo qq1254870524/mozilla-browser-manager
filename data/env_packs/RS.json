@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Europe/Belgrade",
+  "locale": "sr-RS",
+  "languages": [
+    "sr-RS",
+    "sr",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Belgrade",
+      "lat": 44.7866,
+      "lon": 20.4489
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

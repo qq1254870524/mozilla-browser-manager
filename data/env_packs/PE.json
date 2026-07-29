@@ -1,0 +1,21 @@
+{
+  "timezone_id": "America/Lima",
+  "locale": "es-PE",
+  "languages": [
+    "es-PE",
+    "es",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Lima",
+      "lat": -12.0464,
+      "lon": -77.0428
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

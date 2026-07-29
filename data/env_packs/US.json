@@ -1,0 +1,30 @@
+{
+  "timezone_id": "America/New_York",
+  "locale": "en-US",
+  "languages": [
+    "en-US",
+    "en"
+  ],
+  "cities": [
+    {
+      "name": "New York",
+      "lat": 40.7128,
+      "lon": -74.006
+    },
+    {
+      "name": "Los Angeles",
+      "lat": 34.0522,
+      "lon": -118.2437
+    },
+    {
+      "name": "Chicago",
+      "lat": 41.8781,
+      "lon": -87.6298
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

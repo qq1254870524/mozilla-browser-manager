@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Africa/Cairo",
+  "locale": "ar-EG",
+  "languages": [
+    "ar-EG",
+    "ar",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Cairo",
+      "lat": 30.0444,
+      "lon": 31.2357
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

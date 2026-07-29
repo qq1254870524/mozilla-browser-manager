@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mozilla 浏览器管理器</title>
+<link rel="stylesheet" href="/static/css/app.css" />
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo">M</div><div>Mozilla Manager</div></div>
+    <div class="nav-create">
+      <button class="btn btn-primary" style="flex:1" id="btnOpenCreate">＋ 新建浏览器</button>
+    </div>
+    <div class="nav-sec">环境</div>
+    <div class="nav-item active" data-view="profiles"><span class="ico">▦</span>环境管理</div>
+    <div class="nav-item" data-view="groups"><span class="ico">📁</span>分组管理</div>
+    <div class="nav-item" data-view="proxies"><span class="ico">☍</span>代理管理</div>
+    <div class="nav-item" data-view="subs"><span class="ico">☁</span>订阅 / 节点</div>
+    <div class="nav-item" data-view="doctor"><span class="ico">🩺</span>系统诊断</div>
+    <div class="nav-item" data-view="tools"><span class="ico">🛠</span>v10.1 工具箱</div>
+    <div class="side-foot">
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <div class="badge" id="notifyBadge" style="cursor:pointer" title="打开通知">通知</div>
+        <div class="badge" id="healthBadge">检测中…</div>
+      </div>
+      <div style="margin-top:8px;color:#94a3b8;font-size:12px;line-height:1.4">ROOT 锁定<br>/home/baoge/Mozilla</div>
+      <div style="margin-top:6px;color:#94a3b8;font-size:11px">v10.1 合规增强 · launch自动重绑 · 同步/保险库/报表</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div style="display:flex;align-items:center;gap:8px;min-width:0">
+        <button class="btn btn-ghost btn-sm side-toggle" id="btnSideToggle" title="菜单">☰</button>
+        <h1 id="pageTitle">环境管理</h1>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" id="btnRefresh">刷新</button>
+        <span id="clock" style="color:#94a3b8;font-size:12px"></span>
+      </div>
+    </div>
+    <div class="content">
+      <!-- profiles module mount -->
+      <div id="dashStrip" class="mono" style="padding:6px 16px;color:#64748b;font-size:12px">v10 dashboard…</div>
+      <section id="view-profiles" class="card" data-module="profiles">
+        <div class="tabs"><div class="tab active">全部环境</div></div>
+        <div class="toolbar">
+          <div class="search">🔎 <input id="qProfile" placeholder="搜索名称 / ID / 备注" /></div>
+          <select id="filterEngine">
+            <option value="">全部引擎</option>
+            <option value="pw_chromium">Chromium</option>
+            <option value="camoufox">Camoufox</option>
+          </select>
+          <select id="filterGroup"><option value="">全部分组</option></select>
+          <select id="filterTag"><option value="">全部标签</option></select>
+          <label style="display:flex;gap:4px;align-items:center;font-size:12px;color:#64748b"><input type="checkbox" id="filterRelogin"/> 仅需重登</label>
+          <div class="spacer"></div>
+          <button class="btn btn-ghost btn-sm" id="btnOpenCreate2">新建</button>
+          <button class="btn btn-ghost btn-sm" id="btnBulkStop">停止选中</button>
+          <button class="btn btn-danger btn-sm" id="btnBulkDiagnose">批量诊断</button>
+          <button class="btn btn-ghost btn-sm" id="btnBulkDelete">删除选中</button>
+          <span class="sel-count" id="selHint">点击表头全选可见行</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th class="row-check"><input type="checkbox" id="chkAll" /></th>
+                <th>编号</th><th>名称</th><th>状态</th><th>引擎 / 补丁</th>
+                <th>代理</th><th>时区 / 语言</th><th>分组</th><th>更新时间</th><th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="profileBody"></tbody>
+          </table>
+        </div>
+        <div class="footer-bar"><span id="profileCount">总数 0</span><span>本地 Web · 127.0.0.1:17888</span></div>
+      </section>
+
+      <!-- groups -->
+      <section id="view-groups" class="card" style="display:none" data-module="groups">
+        <div class="toolbar"><b>分组</b><div class="spacer"></div></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>分组</th><th>环境数</th><th>操作</th></tr></thead>
+            <tbody id="groupBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- proxies -->
+      <section id="view-proxies" class="card" style="display:none" data-module="proxies">
+        <div class="tabs" id="proxyTabs">
+          <div class="tab active" data-tab="library">SOCKS5 代理库</div>
+          <div class="tab" data-tab="nodes">订阅节点</div>
+          <div class="tab" data-tab="bindings">环境绑定</div>
+        </div>
+        <div id="proxyLibPane">
+          <div class="proxy-form-grid">
+            <input type="hidden" id="px_edit_id" value="" />
+            <label>名称<input id="px_name" type="text" placeholder="可选，默认 host:port" /></label>
+            <label>主机 *<input id="px_host" type="text" placeholder="1.2.3.4 或 proxy.example.com" /></label>
+            <label>端口 *<input id="px_port" type="number" value="1080" min="1" max="65535" /></label>
+            <label>账号<input id="px_user" type="text" placeholder="可选" autocomplete="off" /></label>
+            <label>密码<input id="px_pass" type="password" placeholder="可选" autocomplete="new-password" /></label>
+            <label>刷新 IP 链接<input id="px_refresh" type="url" placeholder="https://provider/.../changeip?..." /></label>
+            <label>备注<input id="px_remark" type="text" placeholder="可选" /></label>
+          </div>
+          <div class="toolbar">
+            <button class="btn btn-primary btn-sm" id="btnPxSave">添加代理</button>
+            <button class="btn btn-ghost btn-sm" id="btnPxClear">清空表单</button>
+            <button class="btn btn-ghost btn-sm" id="btnPxReload">刷新列表</button>
+            <button class="btn btn-danger btn-sm" id="btnPxDelSel">删除选中</button>
+            <div class="spacer"></div>
+            <button class="btn btn-ghost btn-sm" id="btnGoSubs">订阅节点</button>
+            <span class="sel-count" id="proxyCount">SOCKS5 库 0</span>
+          </div>
+          <div class="proxy-form-grid" style="grid-template-columns:1fr;border-bottom:1px solid var(--line)">
+            <label>批量添加（每行一条）
+              <textarea id="px_batch" class="proxy-batch" rows="5" placeholder="支持格式：&#10;host:port:user:pass&#10;host:port:user:pass:https://refresh-url&#10;host|port|user|pass|refresh&#10;socks5://user:pass@host:port&#10;host,port,user,pass,refresh_url"></textarea>
+            </label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-primary btn-sm" id="btnPxBatch">批量导入</button>
+              <span class="hint">重复 host:port:user 会更新；刷新 IP 链接可选。不改系统代理，仅供浏览器环境绑定。</span>
+            </div>
+          </div>
+        </div>
+        <div id="proxyNodesPane" style="display:none">
+          <div class="toolbar">
+            <input id="pxSubUrl" type="url" style="max-width:420px" placeholder="订阅链接 URL" />
+            <input id="pxSubName" type="text" style="max-width:120px" value="default" placeholder="订阅名" />
+            <button class="btn btn-primary btn-sm" id="btnPxImportSub">导入订阅</button>
+            <button class="btn btn-ghost btn-sm" id="btnPxRefreshSub">更新当前</button>
+            <div class="spacer"></div>
+            <span class="pill ok" id="pxActiveSubPill">active: —</span>
+            <button class="btn btn-ghost btn-sm" id="btnPxLoadNodes">刷新节点</button>
+            <button class="btn btn-ghost btn-sm" id="btnOpenFullSubs">打开完整订阅页</button>
+          </div>
+          <div class="grid-cards" id="pxSubCards" style="padding:10px 12px"></div>
+          <div class="toolbar">
+            <div class="search">🔎 <input id="pxNodeQ" placeholder="筛选节点" /></div>
+            <select id="pxNodeType" style="max-width:130px"><option value="">全部类型</option></select>
+            <div class="spacer"></div>
+            <span class="sel-count" id="pxNodeCount">节点 0</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>节点名</th><th>类型</th><th>国家</th><th>服务器</th><th>操作</th></tr></thead>
+              <tbody id="pxNodeBody"></tbody>
+            </table>
+          </div>
+          <div class="footer-bar"><span>与「订阅 / 节点」同源 runtime/nodes</span><span>SOCKS5 与订阅节点同时共存</span></div>
+        </div>
+        <div id="proxyTablePane">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="row-check"><input type="checkbox" id="pxChkAll" /></th>
+                  <th>#</th>
+                  <th>名称</th>
+                  <th>主机:端口</th>
+                  <th>账号</th>
+                  <th>密码</th>
+                  <th>刷新 IP</th>
+                  <th>备注 / 关联</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="proxyBody"></tbody>
+            </table>
+          </div>
+          <div class="footer-bar"><span>代理库 data/proxies/socks5_store.json</span><span>独立出口 · 每环境可绑定不同 SOCKS5</span></div>
+        </div>
+      </section>
+
+      <!-- subscriptions v5 -->
+      <section id="view-subs" class="card" style="display:none" data-module="subscriptions">
+        <div class="toolbar">
+          <input id="subUrl" type="url" style="max-width:480px" placeholder="订阅链接 URL"
+            value="https://liangxin.xyz/api/v1/liangxin?OwO=341f1230bbe176bbdd261497abf7da74" />
+          <input id="subName" type="text" style="max-width:120px" value="default" placeholder="名称" />
+          <button class="btn btn-primary btn-sm" id="btnImportSub">导入订阅</button>
+          <button class="btn btn-ghost btn-sm" id="btnRefreshSub">更新当前</button>
+          <div class="spacer"></div>
+          <span class="pill ok" id="activeSubPill">active: —</span>
+          <button class="btn btn-ghost btn-sm" id="btnLoadNodes">刷新节点</button>
+          <button class="btn btn-ghost btn-sm" id="btnSpeedtest">节点测速</button>
+          <button class="btn btn-ghost btn-sm" id="btnNodeGroups">按国家</button>
+        </div>
+        <div class="toolbar" style="margin-top:8px">
+          <input id="subImportFile" type="file" accept=".zip,.json,.yaml,.yml,.jsonl,.txt,.conf,.raw" style="display:none" />
+          <button class="btn btn-ghost btn-sm" id="btnPickImportFile" type="button">选择文件</button>
+          <span class="pill" id="subImportFileLabel" style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">未选择文件</span>
+          <input id="subImportName" type="text" style="max-width:120px" value="" placeholder="导入名(可中文)" />
+          <button class="btn btn-ghost btn-sm" id="btnImportFile">导入本地文件</button>
+          <!-- 兼容旧 API：隐藏路径字段（高级/脚本仍可写） -->
+          <input id="subImportPath" type="hidden" value="" />
+          <div class="spacer"></div>
+          <select id="exportFmt" style="max-width:100px">
+            <option value="zip">zip</option>
+            <option value="json">json</option>
+            <option value="yaml">yaml</option>
+            <option value="jsonl">jsonl</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" id="btnExportSub">导出全部节点</button>
+          <button class="btn btn-ghost btn-sm" id="btnTurnstileVendor">CF 盾 vendor</button>
+        </div>
+        <div class="grid-cards" id="subCards"></div>
+        <div class="toolbar" style="margin-top:4px">
+          <div class="search">🔎 <input id="nodeQ" placeholder="筛选节点名 / 类型 / 服务器 / 国家" /></div>
+          <select id="nodeTypeFilter" style="max-width:140px">
+            <option value="">全部类型</option>
+            <option value="vless">vless</option>
+            <option value="hysteria2">hysteria2</option>
+            <option value="vmess">vmess</option>
+            <option value="trojan">trojan</option>
+            <option value="ss">ss</option>
+            <option value="tuic">tuic</option>
+          </select>
+          <label style="display:flex;gap:4px;align-items:center;color:#64748b;font-size:12px">
+            <input id="nodeShowInfo" type="checkbox" checked /> 显示信息项
+          </label>
+          <div class="spacer"></div>
+          <span class="sel-count" id="nodeCountBar">节点 0</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>节点名</th><th>类型</th><th>国家</th><th>服务器</th><th>端口/延迟</th><th>操作</th></tr></thead>
+            <tbody id="nodeBody"></tbody>
+          </table>
+        </div>
+        <div class="footer-bar"><span id="nodeFooterHint">完整节点列表来自 runtime/nodes/subs/&lt;name&gt;/nodes.json</span><span>导入失败会保留旧表</span></div>
+        <div class="toolbar" style="margin-top:10px">
+          <b style="font-size:13px;color:#64748b">Turnstile / CF</b>
+          <input id="cfUrl" type="url" style="max-width:420px" placeholder="目标 URL（含 CF 盾页面）" />
+          <input id="cfProfileId" type="text" style="max-width:200px" placeholder="profile_id（可选，空则临时浏览器）" />
+          <button class="btn btn-primary btn-sm" id="btnCfSolve">过 CF 盾</button>
+          <span class="pill" id="cfStatus">内置 turnstile-harvester1</span>
+        </div>
+      </section>
+
+      <!-- doctor -->
+      <section id="view-doctor" class="card" style="display:none" data-module="doctor">
+        <div class="toolbar">
+          <b>系统诊断</b><div class="spacer"></div>
+          <button class="btn btn-ghost btn-sm" id="btnStealthEntropy">v6 熵值</button>
+          <button class="btn btn-ghost btn-sm" id="btnStealthCollision">v6 碰撞率</button>
+          <button class="btn btn-ghost btn-sm" id="btnTlsProfiles">TLS 人格</button>
+          <button class="btn btn-primary btn-sm" id="btnCompliance">v1–v10 合规核对</button>
+          <button class="btn btn-ghost btn-sm" id="btnBackfillMeta">回填默认 meta</button>
+          <button class="btn btn-ghost btn-sm" id="btnDoctorReload">重新检测</button>
+        </div>
+        <div id="stealthPanel" class="grid-cards" style="margin-bottom:12px"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>状态</th><th>检查项</th><th>详情</th></tr></thead>
+            <tbody id="doctorBody"></tbody>
+          </table>
+        </div>
+        <div class="grid-cards" id="mihomoCards"></div>
+      </section>
+
+      <!-- v7 tools -->
+      <section id="view-tools" class="card" style="display:none" data-module="tools">
+        <div class="toolbar"><b>v10.1 工具箱</b><div class="spacer"></div></div>
+        <div class="grid-cards">
+          <div class="card stat"><div class="l">批量创建</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+              <input id="batchCountry" placeholder="国家码 JP" style="max-width:80px" value="JP"/>
+              <input id="batchCount" type="number" value="3" style="max-width:70px"/>
+              <input id="batchPrefix" placeholder="前缀" style="max-width:120px"/>
+              <button class="btn btn-primary btn-sm" id="btnBatchCreate">一键生成</button>
+            </div>
+          </div>
+          <div class="card stat"><div class="l">2FA / TOTP</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+              <input id="totpName" placeholder="名称" style="max-width:100px"/>
+              <input id="totpSecret" placeholder="Base32 secret / 或下方 otpauth" style="max-width:220px"/>
+              <button class="btn btn-primary btn-sm" id="btnTotpAdd">添加</button>
+              <button class="btn btn-ghost btn-sm" id="btnTotpList">刷新列表</button>
+            </div>
+            <div id="totpList" class="mono" style="margin-top:8px;font-size:12px"></div>
+          </div>
+          <div class="card stat"><div class="l">网络诊断</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+              <input id="diagProfile" placeholder="profile_id" style="max-width:200px"/>
+              <button class="btn btn-primary btn-sm" id="btnDiagnose">一键诊断</button>
+            </div>
+            <pre id="diagOut" style="margin-top:8px;max-height:180px;overflow:auto;font-size:11px;background:#f8fafc;padding:8px;border-radius:8px"></pre>
+          </div>
+          <div class="card stat"><div class="l">迁移 / 虚拟媒体 / 国家</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+              <input id="migProfile" placeholder="profile_id 导出" style="max-width:160px"/>
+              <button class="btn btn-ghost btn-sm" id="btnMigExport">导出迁移包</button>
+              <input id="migPath" placeholder="zip 路径导入" style="max-width:220px"/>
+              <button class="btn btn-ghost btn-sm" id="btnMigImport">导入</button>
+              <button class="btn btn-ghost btn-sm" id="btnCountries">国家模板数</button>
+              <button class="btn btn-ghost btn-sm" id="btnVirtMedia">开启虚拟摄像/麦克风</button>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+              <input id="fleetImportPath" placeholder="fleet zip 路径 data/fleet/..." style="max-width:280px"/>
+              <button class="btn btn-ghost btn-sm" id="btnFleetImport">Fleet导入</button>
+              <input id="vaultName" placeholder="密钥名" style="max-width:100px"/>
+              <input id="vaultValue" placeholder="密钥值" style="max-width:140px"/>
+              <button class="btn btn-ghost btn-sm" id="btnVaultPut">存入保险库</button>
+            </div>
+            <div id="toolsMsg" class="mono" style="margin-top:8px;font-size:12px"></div>
+          </div>
+          <div class="card stat" style="grid-column:1/-1"><div class="l">v8 运维</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+              <button class="btn btn-ghost btn-sm" id="btnDash">仪表盘</button>
+              <button class="btn btn-ghost btn-sm" id="btnHistory">运行历史</button>
+              <button class="btn btn-ghost btn-sm" id="btnJobs">任务列表</button>
+              <button class="btn btn-ghost btn-sm" id="btnBulkDiagAll">全量诊断任务</button>
+              <button class="btn btn-ghost btn-sm" id="btnNotify">通知</button>
+              <button class="btn btn-ghost btn-sm" id="btnNotifyRead">全部已读</button>
+              <button class="btn btn-ghost btn-sm" id="btnAudit">审计</button>
+              <button class="btn btn-ghost btn-sm" id="btnFleetExport">Fleet导出</button>
+              <button class="btn btn-ghost btn-sm" id="btnFleetList">Fleet列表</button>
+              <button class="btn btn-ghost btn-sm" id="btnReport">运维报表</button>
+              <button class="btn btn-ghost btn-sm" id="btnBackup">立即备份</button>
+              <button class="btn btn-ghost btn-sm" id="btnVaultList">密钥库</button>
+              <span id="wsJobsStatus" class="mono" style="font-size:11px;color:#64748b">WS:-</span>
+            </div>
+            <pre id="opsOut" style="margin-top:8px;max-height:180px;overflow:auto;font-size:11px;background:#f8fafc;padding:8px;border-radius:8px"></pre>
+          </div>
+          <div class="card stat" style="grid-column:1/-1"><div class="l">v9 巡检 Watchdog</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+              <input id="wdProfile" placeholder="profile_id" style="max-width:160px"/>
+              <select id="wdKind" style="max-width:140px">
+                <option value="login_check">登录态巡检</option>
+                <option value="diagnose">网络诊断</option>
+                <option value="net_quality">网络质量</option>
+              </select>
+              <input id="wdEvery" type="number" value="60" title="间隔分钟" style="max-width:80px"/>
+              <button class="btn btn-primary btn-sm" id="btnWdAdd">添加巡检</button>
+              <button class="btn btn-ghost btn-sm" id="btnWdList">列表</button>
+              <button class="btn btn-ghost btn-sm" id="btnWdTick">立即 tick</button>
+            </div>
+          </div>
+          <div class="card stat" style="grid-column:1/-1"><div class="l">RPA 工作流</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+              <input id="rpaName" placeholder="工作流名 demo" style="max-width:120px" value="demo-check"/>
+              <input id="rpaProfile" placeholder="profile_id" style="max-width:160px"/>
+              <button class="btn btn-primary btn-sm" id="btnRpaSaveDemo">保存示例脚本</button>
+              <button class="btn btn-ghost btn-sm" id="btnRpaList">列表</button>
+              <button class="btn btn-ghost btn-sm" id="btnRpaRun">试跑(dry)</button>
+              <button class="btn btn-primary btn-sm" id="btnRecStart">开始录制</button>
+              <button class="btn btn-ghost btn-sm" id="btnRecStop">停止并保存</button>
+              <button class="btn btn-ghost btn-sm" id="btnTimeline">录制时间线</button>
+            </div>
+            <pre id="rpaOut" style="margin-top:8px;max-height:160px;overflow:auto;font-size:11px;background:#f8fafc;padding:8px;border-radius:8px"></pre>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<!-- create modal (create_modal.js) -->
+<div class="modal-mask" id="createModal">
+  <div class="modal">
+    <div class="modal-h">
+      <b>新建浏览器环境</b>
+      <button class="btn btn-ghost btn-sm" id="btnCloseCreate">关闭</button>
+    </div>
+    <div class="modal-b">
+      <div class="form">
+        <div class="form-grid">
+          <label>名称 *</label>
+          <input id="c_name" type="text" placeholder="例如 DE-Shop-01" />
+          <label>分组</label>
+          <input id="c_group" type="text" placeholder="未分组 / 业务线" />
+          <label>备注</label>
+          <input id="c_remark" type="text" placeholder="可选" />
+          <label>引擎</label>
+          <div class="field">
+            <div class="seg" id="c_engine">
+              <button type="button" class="on" data-v="pw_chromium">Chromium</button>
+              <button type="button" data-v="camoufox">Camoufox</button>
+            </div>
+          </div>
+          <label>补丁</label>
+          <div class="field">
+            <div class="seg" id="c_patch">
+              <button type="button" class="on" data-v="patchright">Patchright</button>
+              <button type="button" data-v="rebrowser">rebrowser</button>
+              <button type="button" data-v="none">无</button>
+            </div>
+          </div>
+          <label>国家模板</label>
+          <select id="c_country">
+            <option value="">不使用</option>
+            <option value="DE">DE 德国</option>
+            <option value="US">US 美国</option>
+            <option value="JP">JP 日本</option>
+            <option value="GB">GB 英国</option>
+          </select>
+          <label>代理方式</label>
+          <div class="field">
+            <div class="seg" id="c_proxy_mode">
+              <button type="button" class="on" data-v="none">直连</button>
+              <button type="button" data-v="socks5">SOCKS5</button>
+              <button type="button" data-v="mihomo">mihomo</button>
+            </div>
+          </div>
+          <label id="lab_socks_lib">代理库</label>
+          <select id="c_socks5_lib">
+            <option value="">— 手动填写 / 不选用 —</option>
+          </select>
+          <label id="lab_socks_host">主机 *</label>
+          <input id="c_socks_host" type="text" placeholder="1.2.3.4 或 proxy.host" />
+          <label id="lab_socks_port">端口 *</label>
+          <input id="c_socks_port" type="number" placeholder="1080" value="1080" min="1" max="65535" />
+          <label id="lab_socks_user">账号</label>
+          <input id="c_socks_user" type="text" placeholder="可选" autocomplete="off" />
+          <label id="lab_socks_pass">密码</label>
+          <input id="c_socks_pass" type="password" placeholder="可选" autocomplete="new-password" />
+          <label id="lab_socks_refresh">刷新 IP 链接</label>
+          <input id="c_socks_refresh" type="url" placeholder="可选，创建时同步写入代理库" />
+          <label id="lab_socks_url" class="hint" style="display:none">URL</label>
+          <input id="c_socks5" type="hidden" value="" />
+          <label id="lab_sub">订阅</label>
+          <select id="c_sub">
+            <option value="default">default</option>
+          </select>
+          <label id="lab_node_filter">节点筛选</label>
+          <div class="field" id="c_node_filter_wrap">
+            <input id="c_node_q" type="text" placeholder="搜索节点名 / 国家 / 服务器" style="flex:1;min-width:120px" />
+            <select id="c_node_cc" style="max-width:120px" title="按国家过滤">
+              <option value="">全部国家</option>
+            </select>
+            <label style="display:flex;gap:4px;align-items:center;color:#64748b;white-space:nowrap">
+              <input id="c_node_show_info" type="checkbox" /> 显示信息项
+            </label>
+          </div>
+          <label id="lab_node">选择节点 *</label>
+          <div class="field" id="c_node_wrap" style="flex-direction:column;align-items:stretch;gap:4px">
+            <select id="c_node" class="node-select-dropdown" title="下拉选择节点（上方可筛选）">
+              <option value="">— 请选择节点 —</option>
+            </select>
+            <span class="hint" id="c_node_count">节点统计加载中…</span>
+          </div>
+          <label id="lab_port">mihomo 端口</label>
+          <div class="field" id="c_port_wrap">
+            <input id="c_port" type="number" style="max-width:140px" value="0" />
+            <label style="display:flex;gap:6px;align-items:center;color:#64748b">
+              <input id="c_auto_port" type="checkbox" checked /> 自动分配端口
+            </label>
+          </div>
+          <label>CF 过盾</label>
+          <div class="field">
+            <label style="display:flex;gap:8px;align-items:center;color:#334155">
+              <input id="c_auto_cf" type="checkbox" />
+              <span>启动时自动过 Cloudflare / Turnstile（内置 harvester）</span>
+            </label>
+            <input id="c_cf_timeout" type="number" value="45" min="10" max="180" style="max-width:90px" title="超时秒" />
+            <span class="hint">秒 · 写入环境 meta.auto_cf，打开浏览器后对标签页自动处理</span>
+          </div>
+          <label>标签页</label>
+          <textarea id="c_tabs" rows="3" placeholder="每行一个 URL（可选）"></textarea>
+        </div>
+      </div>
+      <div class="summary">
+        <h3>概要</h3>
+        <div class="kv" id="createSummary"></div>
+        <div style="margin-top:16px;color:#94a3b8;font-size:12px;line-height:1.5">
+          启动时自动绑定 proxy + timezone + locale + geolocation，并打开本地一键检测页。
+        </div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-ghost" id="btnCancelCreate">取消</button>
+      <button class="btn btn-primary" id="btnSubmitCreate">确定</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- change proxy modal -->
+<div class="modal-mask" id="proxyModal">
+  <div class="modal" style="width:min(560px,100%);max-height:min(88vh,720px)">
+    <div class="modal-h">
+      <b>更改代理</b>
+      <button class="btn btn-ghost btn-sm" id="btnCloseProxyModal" type="button">关闭</button>
+    </div>
+    <div class="modal-b" style="grid-template-columns:1fr">
+      <div class="form" style="padding:16px 18px">
+        <div class="hint" id="pxEditProfileHint" style="margin-bottom:10px;color:#64748b">profile: —</div>
+        <input type="hidden" id="pxEditProfileId" value="" />
+        <label>代理模式</label>
+        <div class="seg" id="pxEditMode">
+          <button type="button" data-v="none" class="on">直连</button>
+          <button type="button" data-v="socks5">SOCKS5</button>
+          <button type="button" data-v="mihomo">mihomo</button>
+        </div>
+        <div id="pxEditSocksBox" style="display:none;margin-top:10px">
+          <label>SOCKS5 URL 或 主机</label>
+          <input id="pxEditSocks" type="text" placeholder="socks5://user:pass@host:1080 或 host" />
+          <label>端口（主机模式）</label>
+          <input id="pxEditSocksPort" type="number" value="1080" min="1" max="65535" />
+          <label>账号</label>
+          <input id="pxEditSocksUser" type="text" placeholder="可选" />
+          <label>密码</label>
+          <input id="pxEditSocksPass" type="password" placeholder="可选" />
+        </div>
+        <div id="pxEditMihomoBox" style="display:none;margin-top:10px">
+          <label>订阅</label>
+          <select id="pxEditSub"></select>
+          <label>节点</label>
+          <select id="pxEditNode" class="node-select-dropdown">
+            <option value="">— 请选择节点 —</option>
+          </select>
+          <label style="display:flex;gap:6px;align-items:center;margin-top:8px;color:#64748b">
+            <input id="pxEditAutoPort" type="checkbox" checked /> 自动分配 mihomo 端口
+          </label>
+          <input id="pxEditPort" type="number" value="0" style="max-width:140px;display:none" />
+        </div>
+      </div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-ghost" id="btnCancelProxy" type="button">取消</button>
+      <button class="btn btn-primary" id="btnSaveProxy" type="button">保存代理</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script type="module" src="/static/js/core/app.js"></script>
+</body>
+</html>

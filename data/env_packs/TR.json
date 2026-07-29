@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Europe/Istanbul",
+  "locale": "tr-TR",
+  "languages": [
+    "tr-TR",
+    "tr",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Istanbul",
+      "lat": 41.0082,
+      "lon": 28.9784
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

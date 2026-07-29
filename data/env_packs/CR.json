@@ -1,0 +1,21 @@
+{
+  "timezone_id": "America/Costa_Rica",
+  "locale": "es-CR",
+  "languages": [
+    "es-CR",
+    "es",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "San José",
+      "lat": 9.9281,
+      "lon": -84.0907
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

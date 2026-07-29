@@ -1,0 +1,18 @@
+# Locked to this project tree: /home/baoge/Mozilla
+# Python 3.11+
+# Kernels
+playwright>=1.48.0,<2
+camoufox[geoip]>=0.4.0
+# Patches (free combo with Chromium)
+patchright>=1.55.0
+rebrowser-playwright>=1.49.0
+# App
+pydantic>=2.8
+httpx[socks]>=0.27
+pyyaml>=6.0
+rich>=13.7
+typer>=0.12
+fastapi>=0.115
+uvicorn[standard]>=0.30
+# Desktop client (native window)
+pywebview>=5.0

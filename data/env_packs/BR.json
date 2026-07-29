@@ -1,0 +1,26 @@
+{
+  "timezone_id": "America/Sao_Paulo",
+  "locale": "pt-BR",
+  "languages": [
+    "pt-BR",
+    "pt",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "São Paulo",
+      "lat": -23.5505,
+      "lon": -46.6333
+    },
+    {
+      "name": "Rio de Janeiro",
+      "lat": -22.9068,
+      "lon": -43.1729
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Africa/Nairobi",
+  "locale": "en-KE",
+  "languages": [
+    "en-KE",
+    "en",
+    "sw-KE"
+  ],
+  "cities": [
+    {
+      "name": "Nairobi",
+      "lat": -1.2921,
+      "lon": 36.8219
+    }
+  ],
+  "viewport": [
+    1366,
+    768
+  ],
+  "fingerprint": "win11-chrome"
+}

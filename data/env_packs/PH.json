@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Asia/Manila",
+  "locale": "en-PH",
+  "languages": [
+    "en-PH",
+    "en",
+    "fil"
+  ],
+  "cities": [
+    {
+      "name": "Manila",
+      "lat": 14.5995,
+      "lon": 120.9842
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

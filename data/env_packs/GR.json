@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Europe/Athens",
+  "locale": "el-GR",
+  "languages": [
+    "el-GR",
+    "el",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Athens",
+      "lat": 37.9838,
+      "lon": 23.7275
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

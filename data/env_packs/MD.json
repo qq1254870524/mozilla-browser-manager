@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Europe/Chisinau",
+  "locale": "ro-MD",
+  "languages": [
+    "ro-MD",
+    "ru",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Chișinău",
+      "lat": 47.0105,
+      "lon": 28.8638
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

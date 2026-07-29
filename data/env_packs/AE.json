@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Asia/Dubai",
+  "locale": "ar-AE",
+  "languages": [
+    "ar-AE",
+    "ar",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Dubai",
+      "lat": 25.2048,
+      "lon": 55.2708
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

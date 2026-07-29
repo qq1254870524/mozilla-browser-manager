@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Europe/Skopje",
+  "locale": "mk-MK",
+  "languages": [
+    "mk-MK",
+    "mk",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Skopje",
+      "lat": 41.9981,
+      "lon": 21.4254
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

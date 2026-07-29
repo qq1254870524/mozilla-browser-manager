@@ -1,0 +1,22 @@
+{
+  "timezone_id": "Europe/Sarajevo",
+  "locale": "bs-BA",
+  "languages": [
+    "bs-BA",
+    "hr-BA",
+    "sr-BA",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Sarajevo",
+      "lat": 43.8563,
+      "lon": 18.4131
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

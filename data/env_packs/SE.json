@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Europe/Stockholm",
+  "locale": "sv-SE",
+  "languages": [
+    "sv-SE",
+    "sv",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Stockholm",
+      "lat": 59.3293,
+      "lon": 18.0686
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

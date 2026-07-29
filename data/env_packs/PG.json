@@ -1,0 +1,20 @@
+{
+  "timezone_id": "Pacific/Port_Moresby",
+  "locale": "en-PG",
+  "languages": [
+    "en-PG",
+    "en"
+  ],
+  "cities": [
+    {
+      "name": "Port Moresby",
+      "lat": -9.4438,
+      "lon": 147.1803
+    }
+  ],
+  "viewport": [
+    1366,
+    768
+  ],
+  "fingerprint": "win11-chrome"
+}

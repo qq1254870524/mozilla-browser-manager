@@ -1,0 +1,26 @@
+{
+  "timezone_id": "Asia/Almaty",
+  "locale": "ru-KZ",
+  "languages": [
+    "ru-KZ",
+    "kk-KZ",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Almaty",
+      "lat": 43.222,
+      "lon": 76.8512
+    },
+    {
+      "name": "Astana",
+      "lat": 51.1694,
+      "lon": 71.4491
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

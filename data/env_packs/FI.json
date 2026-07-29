@@ -1,0 +1,22 @@
+{
+  "timezone_id": "Europe/Helsinki",
+  "locale": "fi-FI",
+  "languages": [
+    "fi-FI",
+    "fi",
+    "sv-FI",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Helsinki",
+      "lat": 60.1699,
+      "lon": 24.9384
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

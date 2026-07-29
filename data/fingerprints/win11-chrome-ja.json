@@ -1,0 +1,29 @@
+{
+  "template_id": "win11-chrome-ja",
+  "platform": "Win32",
+  "oscpu": "Windows NT 10.0; Win64; x64",
+  "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+  "vendor": "Google Inc.",
+  "vendor_webgl": "Google Inc. (NVIDIA)",
+  "renderer": "ANGLE (NVIDIA, NVIDIA GeForce GTX 1650 Direct3D11 vs_5_0 ps_5_0, D3D11)",
+  "fonts": [
+    "Arial",
+    "Calibri",
+    "Consolas",
+    "Courier New",
+    "Georgia",
+    "Meiryo",
+    "MS Gothic",
+    "MS Mincho",
+    "Segoe UI",
+    "Tahoma",
+    "Times New Roman",
+    "Verdana",
+    "Yu Gothic",
+    "Yu Gothic UI"
+  ],
+  "hardware_concurrency": 8,
+  "device_memory": 8.0,
+  "max_touch_points": 0,
+  "color_depth": 24
+}

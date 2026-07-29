@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Asia/Tashkent",
+  "locale": "uz-UZ",
+  "languages": [
+    "uz-UZ",
+    "ru",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Tashkent",
+      "lat": 41.2995,
+      "lon": 69.2401
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

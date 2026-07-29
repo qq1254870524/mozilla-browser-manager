@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Asia/Taipei",
+  "locale": "zh-TW",
+  "languages": [
+    "zh-TW",
+    "zh",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Taipei",
+      "lat": 25.033,
+      "lon": 121.5654
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome-zh"
+}

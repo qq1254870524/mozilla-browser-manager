@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Europe/Prague",
+  "locale": "cs-CZ",
+  "languages": [
+    "cs-CZ",
+    "cs",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Prague",
+      "lat": 50.0755,
+      "lon": 14.4378
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

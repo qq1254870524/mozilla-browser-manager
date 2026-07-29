@@ -1,0 +1,20 @@
+{
+  "timezone_id": "Africa/Accra",
+  "locale": "en-GH",
+  "languages": [
+    "en-GH",
+    "en"
+  ],
+  "cities": [
+    {
+      "name": "Accra",
+      "lat": 5.6037,
+      "lon": -0.187
+    }
+  ],
+  "viewport": [
+    1366,
+    768
+  ],
+  "fingerprint": "win11-chrome"
+}

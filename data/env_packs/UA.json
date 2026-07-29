@@ -1,0 +1,22 @@
+{
+  "timezone_id": "Europe/Kyiv",
+  "locale": "uk-UA",
+  "languages": [
+    "uk-UA",
+    "uk",
+    "ru",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Kyiv",
+      "lat": 50.4501,
+      "lon": 30.5234
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

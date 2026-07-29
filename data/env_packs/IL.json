@@ -1,0 +1,27 @@
+{
+  "timezone_id": "Asia/Jerusalem",
+  "locale": "he-IL",
+  "languages": [
+    "he-IL",
+    "he",
+    "en-US",
+    "ar"
+  ],
+  "cities": [
+    {
+      "name": "Tel Aviv",
+      "lat": 32.0853,
+      "lon": 34.7818
+    },
+    {
+      "name": "Jerusalem",
+      "lat": 31.7683,
+      "lon": 35.2137
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

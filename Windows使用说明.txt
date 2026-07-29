@@ -1,0 +1,31 @@
+﻿Mozilla 浏览器管理器 — 使用说明
+================================
+
+开发目录（只改代码，不要双击运行）:
+  \\wsl.localhost\Ubuntu\home\baoge\Mozilla
+
+Windows 使用目录（只在这里双击）:
+  C:\Users\zhang\Desktop\Mozilla
+
+【只有 4 个按钮】
+
+  1. 下载依赖.bat     首次必用
+        · Chromium（镜像+断点续传）
+        · Camoufox（镜像+断点续传）
+        · mihomo（镜像+断点续传）
+        · 中断后再次双击会自动续传，不必重头下
+  2. 启动客户端.bat   日常使用（关窗口=全部停止）【推荐】
+  3. 启动WEB.bat      http://127.0.0.1:17888
+  4. 停止WEB.bat      停止 WEB 以及相关后台
+
+【正确流程】
+  第一次：下载依赖 → 启动客户端
+  以后：  启动客户端
+  网络中断：再点一次「下载依赖」即可续传
+
+【严禁】
+  不要从 \\wsl.localhost\... 路径双击
+  必须打开桌面上的 Mozilla 文件夹再点
+
+【从 WSL 同步】
+  cd /home/baoge/Mozilla && bash scripts/export_to_windows.sh

@@ -1,0 +1,34 @@
+{
+  "generated_at": "2026-07-29T00:01:00Z",
+  "root": "/home/baoge/Mozilla",
+  "platform": {
+    "system": "Linux",
+    "machine": "x86_64",
+    "python": "3.12.3"
+  },
+  "packages": {
+    "playwright": "1.60.0",
+    "patchright": "1.61.2",
+    "camoufox": "0.5.4",
+    "httpx": "0.28.1",
+    "pydantic": "2.13.4"
+  },
+  "paths": {
+    "browsers": "/home/baoge/Mozilla/runtime/browsers",
+    "mihomo_bin": "/home/baoge/Mozilla/runtime/mihomo/mihomo",
+    "mihomo_present": true,
+    "rebrowser_bin": null,
+    "patches": "/home/baoge/Mozilla/runtime/patches"
+  },
+  "engines": {
+    "kernels": [
+      "camoufox",
+      "pw_chromium"
+    ],
+    "patches": [
+      "none",
+      "patchright",
+      "rebrowser"
+    ]
+  }
+}

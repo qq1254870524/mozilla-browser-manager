@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Europe/Minsk",
+  "locale": "be-BY",
+  "languages": [
+    "be-BY",
+    "ru-BY",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Minsk",
+      "lat": 53.9006,
+      "lon": 27.559
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

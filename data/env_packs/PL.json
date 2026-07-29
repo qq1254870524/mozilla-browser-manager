@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Europe/Warsaw",
+  "locale": "pl-PL",
+  "languages": [
+    "pl-PL",
+    "pl",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Warsaw",
+      "lat": 52.2297,
+      "lon": 21.0122
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

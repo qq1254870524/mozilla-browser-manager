@@ -1,0 +1,22 @@
+{
+  "timezone_id": "Europe/Luxembourg",
+  "locale": "fr-LU",
+  "languages": [
+    "fr-LU",
+    "de-LU",
+    "lb-LU",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Luxembourg",
+      "lat": 49.6116,
+      "lon": 6.1319
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

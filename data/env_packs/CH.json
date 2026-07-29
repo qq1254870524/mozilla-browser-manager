@@ -1,0 +1,27 @@
+{
+  "timezone_id": "Europe/Zurich",
+  "locale": "de-CH",
+  "languages": [
+    "de-CH",
+    "fr-CH",
+    "it-CH",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Zurich",
+      "lat": 47.3769,
+      "lon": 8.5417
+    },
+    {
+      "name": "Geneva",
+      "lat": 46.2044,
+      "lon": 6.1432
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

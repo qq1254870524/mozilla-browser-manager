@@ -1,0 +1,21 @@
+{
+  "timezone_id": "America/Santo_Domingo",
+  "locale": "es-DO",
+  "languages": [
+    "es-DO",
+    "es",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Santo Domingo",
+      "lat": 18.4861,
+      "lon": -69.9312
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

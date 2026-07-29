@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Pacific/Fiji",
+  "locale": "en-FJ",
+  "languages": [
+    "en-FJ",
+    "en",
+    "fj"
+  ],
+  "cities": [
+    {
+      "name": "Suva",
+      "lat": -18.1416,
+      "lon": 178.4419
+    }
+  ],
+  "viewport": [
+    1366,
+    768
+  ],
+  "fingerprint": "win11-chrome"
+}

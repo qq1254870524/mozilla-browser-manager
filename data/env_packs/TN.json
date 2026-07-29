@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Africa/Tunis",
+  "locale": "ar-TN",
+  "languages": [
+    "ar-TN",
+    "fr-TN",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Tunis",
+      "lat": 36.8065,
+      "lon": 10.1815
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

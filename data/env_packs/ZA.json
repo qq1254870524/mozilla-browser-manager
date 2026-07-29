@@ -1,0 +1,27 @@
+{
+  "timezone_id": "Africa/Johannesburg",
+  "locale": "en-ZA",
+  "languages": [
+    "en-ZA",
+    "en",
+    "af-ZA",
+    "zu-ZA"
+  ],
+  "cities": [
+    {
+      "name": "Johannesburg",
+      "lat": -26.2041,
+      "lon": 28.0473
+    },
+    {
+      "name": "Cape Town",
+      "lat": -33.9249,
+      "lon": 18.4241
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

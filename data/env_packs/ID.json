@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Asia/Jakarta",
+  "locale": "id-ID",
+  "languages": [
+    "id-ID",
+    "id",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Jakarta",
+      "lat": -6.2088,
+      "lon": 106.8456
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

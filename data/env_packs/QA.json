@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Asia/Qatar",
+  "locale": "ar-QA",
+  "languages": [
+    "ar-QA",
+    "ar",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Doha",
+      "lat": 25.2854,
+      "lon": 51.531
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

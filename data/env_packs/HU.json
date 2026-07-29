@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Europe/Budapest",
+  "locale": "hu-HU",
+  "languages": [
+    "hu-HU",
+    "hu",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Budapest",
+      "lat": 47.4979,
+      "lon": 19.0402
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

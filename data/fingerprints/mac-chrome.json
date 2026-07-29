@@ -1,0 +1,26 @@
+{
+  "template_id": "mac-chrome",
+  "platform": "MacIntel",
+  "oscpu": "Intel Mac OS X 10_15_7",
+  "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+  "vendor": "Google Inc.",
+  "vendor_webgl": "Google Inc. (Apple)",
+  "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+  "fonts": [
+    "Arial",
+    "Helvetica",
+    "Helvetica Neue",
+    "Menlo",
+    "Monaco",
+    "SF Pro Text",
+    "SF Pro Display",
+    "Times New Roman",
+    "Verdana",
+    "PingFang SC",
+    "Hiragino Sans"
+  ],
+  "hardware_concurrency": 8,
+  "device_memory": 8.0,
+  "max_touch_points": 0,
+  "color_depth": 30
+}

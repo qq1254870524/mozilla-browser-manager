@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Europe/Ljubljana",
+  "locale": "sl-SI",
+  "languages": [
+    "sl-SI",
+    "sl",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Ljubljana",
+      "lat": 46.0569,
+      "lon": 14.5058
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

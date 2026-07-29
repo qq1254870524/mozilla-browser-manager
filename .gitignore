@@ -1,0 +1,89 @@
+# ===== local runtime / secrets (ROOT tree only; never commit) =====
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.spec.bak
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.log
+*.part
+EXPORT_MANIFEST.txt
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+*:Zone.Identifier
+
+# logs / tmp
+logs/**
+!logs/.gitkeep
+tmp/**
+!tmp/.gitkeep
+
+# runtime binaries & caches (re-downloaded by 下载依赖)
+runtime/browsers/**
+!runtime/browsers/.gitkeep
+runtime/cache/**
+!runtime/cache/.gitkeep
+runtime/mihomo/mihomo
+runtime/mihomo/mihomo.exe
+runtime/mihomo/*.gz
+runtime/mihomo/*.zip
+runtime/mihomo/*.part
+runtime/mihomo/mihomo.download.*
+runtime/python/
+runtime/xdg-config/
+runtime/xdg-data/
+runtime/nodes/**
+!runtime/nodes/.gitkeep
+runtime/vendors/**
+!runtime/vendors/.gitkeep
+runtime/patches/rebrowser-patches/
+runtime/**/*.pid
+runtime/**/*.exe
+
+# ===== data: ship templates, ignore local user state =====
+data/app.db
+data/app.db-*
+data/**/*.sqlite
+data/profiles.json
+data/runtime_registry.json
+data/profiles/**
+!data/profiles/.gitkeep
+data/proxies/**
+!data/proxies/.gitkeep
+data/totp/**
+!data/totp/.gitkeep
+data/nodes/**
+!data/nodes/.gitkeep
+data/client/**
+data/backups/**
+data/vault/**
+data/fleet/**
+data/jobs/**
+!data/jobs/.gitkeep
+data/notices/**
+!data/notices/.gitkeep
+data/watchdogs/**
+!data/watchdogs/.gitkeep
+data/reports/**
+!data/reports/.gitkeep
+data/rpa/**
+!data/rpa/.gitkeep
+data/media/**
+!data/media/.gitkeep
+data/exports/**
+!data/exports/.gitkeep
+
+# KEEP product templates (not secrets):
+# data/env_packs/*.json
+# data/fingerprints/*.json
+!data/env_packs/
+!data/env_packs/**
+!data/fingerprints/
+!data/fingerprints/**

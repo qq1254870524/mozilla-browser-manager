@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Europe/Lisbon",
+  "locale": "pt-PT",
+  "languages": [
+    "pt-PT",
+    "pt",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Lisbon",
+      "lat": 38.7223,
+      "lon": -9.1393
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

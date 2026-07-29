@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Europe/Vienna",
+  "locale": "de-AT",
+  "languages": [
+    "de-AT",
+    "de",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Vienna",
+      "lat": 48.2082,
+      "lon": 16.3738
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

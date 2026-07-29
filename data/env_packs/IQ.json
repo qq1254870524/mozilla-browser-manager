@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Asia/Baghdad",
+  "locale": "ar-IQ",
+  "languages": [
+    "ar-IQ",
+    "ar",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Baghdad",
+      "lat": 33.3152,
+      "lon": 44.3661
+    }
+  ],
+  "viewport": [
+    1366,
+    768
+  ],
+  "fingerprint": "win11-chrome"
+}

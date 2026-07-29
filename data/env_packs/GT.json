@@ -1,0 +1,21 @@
+{
+  "timezone_id": "America/Guatemala",
+  "locale": "es-GT",
+  "languages": [
+    "es-GT",
+    "es",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Guatemala City",
+      "lat": 14.6349,
+      "lon": -90.5069
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

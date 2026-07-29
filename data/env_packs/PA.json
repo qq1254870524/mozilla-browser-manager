@@ -1,0 +1,21 @@
+{
+  "timezone_id": "America/Panama",
+  "locale": "es-PA",
+  "languages": [
+    "es-PA",
+    "es",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Panama City",
+      "lat": 8.9824,
+      "lon": -79.5199
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

@@ -1,0 +1,26 @@
+{
+  "timezone_id": "Europe/Rome",
+  "locale": "it-IT",
+  "languages": [
+    "it-IT",
+    "it",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Rome",
+      "lat": 41.9028,
+      "lon": 12.4964
+    },
+    {
+      "name": "Milan",
+      "lat": 45.4642,
+      "lon": 9.19
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

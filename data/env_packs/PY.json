@@ -1,0 +1,22 @@
+{
+  "timezone_id": "America/Asuncion",
+  "locale": "es-PY",
+  "languages": [
+    "es-PY",
+    "es",
+    "gn",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Asunción",
+      "lat": -25.2637,
+      "lon": -57.5759
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

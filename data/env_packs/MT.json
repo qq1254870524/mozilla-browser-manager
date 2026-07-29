@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Europe/Malta",
+  "locale": "en-MT",
+  "languages": [
+    "en-MT",
+    "mt-MT",
+    "en"
+  ],
+  "cities": [
+    {
+      "name": "Valletta",
+      "lat": 35.8989,
+      "lon": 14.5146
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

@@ -1,0 +1,21 @@
+{
+  "timezone_id": "America/Puerto_Rico",
+  "locale": "es-PR",
+  "languages": [
+    "es-PR",
+    "es",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "San Juan",
+      "lat": 18.4655,
+      "lon": -66.1057
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Asia/Nicosia",
+  "locale": "el-CY",
+  "languages": [
+    "el-CY",
+    "tr-CY",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Nicosia",
+      "lat": 35.1856,
+      "lon": 33.3823
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

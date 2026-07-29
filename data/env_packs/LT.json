@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Europe/Vilnius",
+  "locale": "lt-LT",
+  "languages": [
+    "lt-LT",
+    "lt",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Vilnius",
+      "lat": 54.6872,
+      "lon": 25.2797
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

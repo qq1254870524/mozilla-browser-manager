@@ -1,0 +1,21 @@
+{
+  "timezone_id": "America/El_Salvador",
+  "locale": "es-SV",
+  "languages": [
+    "es-SV",
+    "es",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "San Salvador",
+      "lat": 13.6929,
+      "lon": -89.2182
+    }
+  ],
+  "viewport": [
+    1366,
+    768
+  ],
+  "fingerprint": "win11-chrome"
+}

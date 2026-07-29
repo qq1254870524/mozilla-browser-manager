@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Asia/Vientiane",
+  "locale": "lo-LA",
+  "languages": [
+    "lo-LA",
+    "lo",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Vientiane",
+      "lat": 17.9757,
+      "lon": 102.6331
+    }
+  ],
+  "viewport": [
+    1366,
+    768
+  ],
+  "fingerprint": "win11-chrome"
+}

@@ -1,0 +1,20 @@
+{
+  "timezone_id": "Asia/Brunei",
+  "locale": "ms-BN",
+  "languages": [
+    "ms-BN",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Bandar Seri Begawan",
+      "lat": 4.9031,
+      "lon": 114.9398
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

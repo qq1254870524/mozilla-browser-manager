@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Asia/Kathmandu",
+  "locale": "ne-NP",
+  "languages": [
+    "ne-NP",
+    "ne",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Kathmandu",
+      "lat": 27.7172,
+      "lon": 85.324
+    }
+  ],
+  "viewport": [
+    1366,
+    768
+  ],
+  "fingerprint": "win11-chrome"
+}

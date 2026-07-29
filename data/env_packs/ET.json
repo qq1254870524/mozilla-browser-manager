@@ -1,0 +1,20 @@
+{
+  "timezone_id": "Africa/Addis_Ababa",
+  "locale": "am-ET",
+  "languages": [
+    "am-ET",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Addis Ababa",
+      "lat": 9.032,
+      "lon": 38.7469
+    }
+  ],
+  "viewport": [
+    1366,
+    768
+  ],
+  "fingerprint": "win11-chrome"
+}

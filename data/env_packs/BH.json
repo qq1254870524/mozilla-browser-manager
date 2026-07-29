@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Asia/Bahrain",
+  "locale": "ar-BH",
+  "languages": [
+    "ar-BH",
+    "ar",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Manama",
+      "lat": 26.2285,
+      "lon": 50.586
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

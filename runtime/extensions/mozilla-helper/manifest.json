@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Mozilla Manager Helper",
+  "version": "1.0.0",
+  "description": "Right-click: switch profile proxy node / migrate tab to another profile",
+  "permissions": ["contextMenus", "storage", "tabs", "activeTab"],
+  "host_permissions": ["http://127.0.0.1:17888/*", "http://localhost:17888/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "Mozilla Manager" },
+  "options_page": "options.html"
+}

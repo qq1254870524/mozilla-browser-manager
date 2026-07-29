@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Asia/Phnom_Penh",
+  "locale": "km-KH",
+  "languages": [
+    "km-KH",
+    "km",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Phnom Penh",
+      "lat": 11.5564,
+      "lon": 104.9282
+    }
+  ],
+  "viewport": [
+    1366,
+    768
+  ],
+  "fingerprint": "win11-chrome"
+}

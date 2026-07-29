@@ -1,0 +1,22 @@
+{
+  "timezone_id": "Asia/Baku",
+  "locale": "az-AZ",
+  "languages": [
+    "az-AZ",
+    "az",
+    "en-US",
+    "ru"
+  ],
+  "cities": [
+    {
+      "name": "Baku",
+      "lat": 40.4093,
+      "lon": 49.8671
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

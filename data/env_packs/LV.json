@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Europe/Riga",
+  "locale": "lv-LV",
+  "languages": [
+    "lv-LV",
+    "lv",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Riga",
+      "lat": 56.9496,
+      "lon": 24.1052
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

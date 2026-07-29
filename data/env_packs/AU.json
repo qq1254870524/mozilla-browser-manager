@@ -1,0 +1,20 @@
+{
+  "timezone_id": "Australia/Sydney",
+  "locale": "en-AU",
+  "languages": [
+    "en-AU",
+    "en"
+  ],
+  "cities": [
+    {
+      "name": "Sydney",
+      "lat": -33.8688,
+      "lon": 151.2093
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

@@ -1,0 +1,26 @@
+{
+  "timezone_id": "Africa/Casablanca",
+  "locale": "fr-MA",
+  "languages": [
+    "fr-MA",
+    "ar-MA",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Casablanca",
+      "lat": 33.5731,
+      "lon": -7.5898
+    },
+    {
+      "name": "Rabat",
+      "lat": 34.0209,
+      "lon": -6.8416
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

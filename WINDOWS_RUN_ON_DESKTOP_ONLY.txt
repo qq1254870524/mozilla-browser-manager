@@ -1,0 +1,11 @@
+﻿DO NOT run any .bat from this path on Windows Explorer via UNC:
+
+  \\wsl.localhost\Ubuntu\home\baoge\Mozilla
+
+CMD cannot set UNC as current directory, so bats fall back to
+C:\Windows\System32 and may create .venv there.
+
+Correct usage:
+  1) Develop/edit here in WSL only
+  2) Export:  bash scripts/export_to_windows.sh
+  3) Run bats in:  C:\Users\zhang\Desktop\Mozilla

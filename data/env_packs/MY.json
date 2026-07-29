@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Asia/Kuala_Lumpur",
+  "locale": "ms-MY",
+  "languages": [
+    "ms-MY",
+    "en-US",
+    "zh-CN"
+  ],
+  "cities": [
+    {
+      "name": "Kuala Lumpur",
+      "lat": 3.139,
+      "lon": 101.6869
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

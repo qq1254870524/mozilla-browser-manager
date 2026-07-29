@@ -1,0 +1,21 @@
+{
+  "timezone_id": "America/Montevideo",
+  "locale": "es-UY",
+  "languages": [
+    "es-UY",
+    "es",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Montevideo",
+      "lat": -34.9011,
+      "lon": -56.1645
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

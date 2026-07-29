@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Asia/Ho_Chi_Minh",
+  "locale": "vi-VN",
+  "languages": [
+    "vi-VN",
+    "vi",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Ho Chi Minh",
+      "lat": 10.8231,
+      "lon": 106.6297
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

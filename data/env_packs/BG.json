@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Europe/Sofia",
+  "locale": "bg-BG",
+  "languages": [
+    "bg-BG",
+    "bg",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Sofia",
+      "lat": 42.6977,
+      "lon": 23.3219
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

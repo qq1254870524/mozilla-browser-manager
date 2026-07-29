@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Asia/Ulaanbaatar",
+  "locale": "mn-MN",
+  "languages": [
+    "mn-MN",
+    "mn",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Ulaanbaatar",
+      "lat": 47.8864,
+      "lon": 106.9057
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

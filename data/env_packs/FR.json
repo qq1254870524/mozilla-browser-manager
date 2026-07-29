@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Europe/Paris",
+  "locale": "fr-FR",
+  "languages": [
+    "fr-FR",
+    "fr",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Paris",
+      "lat": 48.8566,
+      "lon": 2.3522
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

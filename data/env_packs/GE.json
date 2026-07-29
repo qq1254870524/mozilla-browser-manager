@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Asia/Tbilisi",
+  "locale": "ka-GE",
+  "languages": [
+    "ka-GE",
+    "ka",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Tbilisi",
+      "lat": 41.7151,
+      "lon": 44.8271
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

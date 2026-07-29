@@ -1,0 +1,32 @@
+{
+  "timezone_id": "Europe/Berlin",
+  "locale": "de-DE",
+  "languages": [
+    "de-DE",
+    "de",
+    "en-US",
+    "en"
+  ],
+  "cities": [
+    {
+      "name": "Berlin",
+      "lat": 52.52,
+      "lon": 13.405
+    },
+    {
+      "name": "Munich",
+      "lat": 48.137,
+      "lon": 11.576
+    },
+    {
+      "name": "Frankfurt",
+      "lat": 50.11,
+      "lon": 8.682
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

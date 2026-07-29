@@ -1,0 +1,26 @@
+{
+  "timezone_id": "Pacific/Auckland",
+  "locale": "en-NZ",
+  "languages": [
+    "en-NZ",
+    "en",
+    "mi-NZ"
+  ],
+  "cities": [
+    {
+      "name": "Auckland",
+      "lat": -36.8485,
+      "lon": 174.7633
+    },
+    {
+      "name": "Wellington",
+      "lat": -41.2865,
+      "lon": 174.7762
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

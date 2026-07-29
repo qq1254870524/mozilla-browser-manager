@@ -1,0 +1,22 @@
+{
+  "timezone_id": "Asia/Macau",
+  "locale": "zh-MO",
+  "languages": [
+    "zh-MO",
+    "zh",
+    "pt-MO",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Macau",
+      "lat": 22.1987,
+      "lon": 113.5439
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome-zh"
+}

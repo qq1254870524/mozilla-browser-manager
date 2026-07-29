@@ -1,0 +1,21 @@
+{
+  "timezone_id": "America/Managua",
+  "locale": "es-NI",
+  "languages": [
+    "es-NI",
+    "es",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Managua",
+      "lat": 12.1364,
+      "lon": -86.2514
+    }
+  ],
+  "viewport": [
+    1366,
+    768
+  ],
+  "fingerprint": "win11-chrome"
+}

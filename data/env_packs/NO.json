@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Europe/Oslo",
+  "locale": "nb-NO",
+  "languages": [
+    "nb-NO",
+    "no",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Oslo",
+      "lat": 59.9139,
+      "lon": 10.7522
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

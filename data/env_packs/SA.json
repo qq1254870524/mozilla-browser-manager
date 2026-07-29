@@ -1,0 +1,26 @@
+{
+  "timezone_id": "Asia/Riyadh",
+  "locale": "ar-SA",
+  "languages": [
+    "ar-SA",
+    "ar",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Riyadh",
+      "lat": 24.7136,
+      "lon": 46.6753
+    },
+    {
+      "name": "Jeddah",
+      "lat": 21.4858,
+      "lon": 39.1925
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

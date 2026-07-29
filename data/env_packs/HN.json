@@ -1,0 +1,21 @@
+{
+  "timezone_id": "America/Tegucigalpa",
+  "locale": "es-HN",
+  "languages": [
+    "es-HN",
+    "es",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Tegucigalpa",
+      "lat": 14.0723,
+      "lon": -87.1921
+    }
+  ],
+  "viewport": [
+    1366,
+    768
+  ],
+  "fingerprint": "win11-chrome"
+}

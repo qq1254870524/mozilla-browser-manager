@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Asia/Dhaka",
+  "locale": "bn-BD",
+  "languages": [
+    "bn-BD",
+    "bn",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Dhaka",
+      "lat": 23.8103,
+      "lon": 90.4125
+    }
+  ],
+  "viewport": [
+    1366,
+    768
+  ],
+  "fingerprint": "win11-chrome"
+}

@@ -1,0 +1,26 @@
+{
+  "timezone_id": "Asia/Karachi",
+  "locale": "en-PK",
+  "languages": [
+    "en-PK",
+    "ur-PK",
+    "en"
+  ],
+  "cities": [
+    {
+      "name": "Karachi",
+      "lat": 24.8607,
+      "lon": 67.0011
+    },
+    {
+      "name": "Lahore",
+      "lat": 31.5204,
+      "lon": 74.3587
+    }
+  ],
+  "viewport": [
+    1366,
+    768
+  ],
+  "fingerprint": "win11-chrome"
+}

@@ -1,0 +1,26 @@
+{
+  "timezone_id": "America/Guayaquil",
+  "locale": "es-EC",
+  "languages": [
+    "es-EC",
+    "es",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Quito",
+      "lat": -0.1807,
+      "lon": -78.4678
+    },
+    {
+      "name": "Guayaquil",
+      "lat": -2.1709,
+      "lon": -79.9224
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

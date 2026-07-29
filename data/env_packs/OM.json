@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Asia/Muscat",
+  "locale": "ar-OM",
+  "languages": [
+    "ar-OM",
+    "ar",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Muscat",
+      "lat": 23.588,
+      "lon": 58.3829
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

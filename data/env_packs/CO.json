@@ -1,0 +1,21 @@
+{
+  "timezone_id": "America/Bogota",
+  "locale": "es-CO",
+  "languages": [
+    "es-CO",
+    "es",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Bogotá",
+      "lat": 4.711,
+      "lon": -74.0721
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

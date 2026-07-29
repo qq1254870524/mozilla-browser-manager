@@ -1,0 +1,26 @@
+{
+  "timezone_id": "America/Mexico_City",
+  "locale": "es-MX",
+  "languages": [
+    "es-MX",
+    "es",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Mexico City",
+      "lat": 19.4326,
+      "lon": -99.1332
+    },
+    {
+      "name": "Guadalajara",
+      "lat": 20.6597,
+      "lon": -103.3496
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

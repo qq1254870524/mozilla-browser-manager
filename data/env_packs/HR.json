@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Europe/Zagreb",
+  "locale": "hr-HR",
+  "languages": [
+    "hr-HR",
+    "hr",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Zagreb",
+      "lat": 45.815,
+      "lon": 15.9819
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

@@ -1,0 +1,21 @@
+{
+  "timezone_id": "America/Caracas",
+  "locale": "es-VE",
+  "languages": [
+    "es-VE",
+    "es",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Caracas",
+      "lat": 10.4806,
+      "lon": -66.9036
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

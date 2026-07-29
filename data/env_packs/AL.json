@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Europe/Tirane",
+  "locale": "sq-AL",
+  "languages": [
+    "sq-AL",
+    "sq",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Tirana",
+      "lat": 41.3275,
+      "lon": 19.8187
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

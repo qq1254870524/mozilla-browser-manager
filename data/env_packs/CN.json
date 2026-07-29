@@ -1,0 +1,31 @@
+{
+  "timezone_id": "Asia/Shanghai",
+  "locale": "zh-CN",
+  "languages": [
+    "zh-CN",
+    "zh",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Shanghai",
+      "lat": 31.2304,
+      "lon": 121.4737
+    },
+    {
+      "name": "Beijing",
+      "lat": 39.9042,
+      "lon": 116.4074
+    },
+    {
+      "name": "Shenzhen",
+      "lat": 22.5431,
+      "lon": 114.0579
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome-zh"
+}

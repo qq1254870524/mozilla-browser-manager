@@ -1,0 +1,21 @@
+{
+  "timezone_id": "America/La_Paz",
+  "locale": "es-BO",
+  "languages": [
+    "es-BO",
+    "es",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "La Paz",
+      "lat": -16.4897,
+      "lon": -68.1193
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

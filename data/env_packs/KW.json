@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Asia/Kuwait",
+  "locale": "ar-KW",
+  "languages": [
+    "ar-KW",
+    "ar",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Kuwait City",
+      "lat": 29.3759,
+      "lon": 47.9774
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

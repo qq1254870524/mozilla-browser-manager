@@ -1,0 +1,26 @@
+{
+  "timezone_id": "America/Toronto",
+  "locale": "en-CA",
+  "languages": [
+    "en-CA",
+    "en",
+    "fr-CA"
+  ],
+  "cities": [
+    {
+      "name": "Toronto",
+      "lat": 43.6532,
+      "lon": -79.3832
+    },
+    {
+      "name": "Vancouver",
+      "lat": 49.2827,
+      "lon": -123.1207
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

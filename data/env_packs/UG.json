@@ -1,0 +1,20 @@
+{
+  "timezone_id": "Africa/Kampala",
+  "locale": "en-UG",
+  "languages": [
+    "en-UG",
+    "en"
+  ],
+  "cities": [
+    {
+      "name": "Kampala",
+      "lat": 0.3476,
+      "lon": 32.5825
+    }
+  ],
+  "viewport": [
+    1366,
+    768
+  ],
+  "fingerprint": "win11-chrome"
+}

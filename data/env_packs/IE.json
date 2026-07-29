@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Europe/Dublin",
+  "locale": "en-IE",
+  "languages": [
+    "en-IE",
+    "en",
+    "ga-IE"
+  ],
+  "cities": [
+    {
+      "name": "Dublin",
+      "lat": 53.3498,
+      "lon": -6.2603
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

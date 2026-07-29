@@ -1,0 +1,22 @@
+{
+  "timezone_id": "Asia/Yerevan",
+  "locale": "hy-AM",
+  "languages": [
+    "hy-AM",
+    "hy",
+    "en-US",
+    "ru"
+  ],
+  "cities": [
+    {
+      "name": "Yerevan",
+      "lat": 40.1792,
+      "lon": 44.4991
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

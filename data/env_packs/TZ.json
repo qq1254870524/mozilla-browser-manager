@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Africa/Dar_es_Salaam",
+  "locale": "sw-TZ",
+  "languages": [
+    "sw-TZ",
+    "en-TZ",
+    "en"
+  ],
+  "cities": [
+    {
+      "name": "Dar es Salaam",
+      "lat": -6.7924,
+      "lon": 39.2083
+    }
+  ],
+  "viewport": [
+    1366,
+    768
+  ],
+  "fingerprint": "win11-chrome"
+}

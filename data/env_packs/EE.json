@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Europe/Tallinn",
+  "locale": "et-EE",
+  "languages": [
+    "et-EE",
+    "et",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Tallinn",
+      "lat": 59.437,
+      "lon": 24.7536
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

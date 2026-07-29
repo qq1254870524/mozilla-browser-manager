@@ -1,0 +1,21 @@
+{
+  "timezone_id": "America/Argentina/Buenos_Aires",
+  "locale": "es-AR",
+  "languages": [
+    "es-AR",
+    "es",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Buenos Aires",
+      "lat": -34.6037,
+      "lon": -58.3816
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

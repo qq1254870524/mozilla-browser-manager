@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Atlantic/Reykjavik",
+  "locale": "is-IS",
+  "languages": [
+    "is-IS",
+    "is",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Reykjavik",
+      "lat": 64.1466,
+      "lon": -21.9426
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Asia/Colombo",
+  "locale": "en-LK",
+  "languages": [
+    "en-LK",
+    "si-LK",
+    "ta-LK"
+  ],
+  "cities": [
+    {
+      "name": "Colombo",
+      "lat": 6.9271,
+      "lon": 79.8612
+    }
+  ],
+  "viewport": [
+    1366,
+    768
+  ],
+  "fingerprint": "win11-chrome"
+}

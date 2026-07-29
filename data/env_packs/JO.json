@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Asia/Amman",
+  "locale": "ar-JO",
+  "languages": [
+    "ar-JO",
+    "ar",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Amman",
+      "lat": 31.9454,
+      "lon": 35.9284
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

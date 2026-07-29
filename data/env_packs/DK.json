@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Europe/Copenhagen",
+  "locale": "da-DK",
+  "languages": [
+    "da-DK",
+    "da",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Copenhagen",
+      "lat": 55.6761,
+      "lon": 12.5683
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

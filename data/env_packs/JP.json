@@ -1,0 +1,26 @@
+{
+  "timezone_id": "Asia/Tokyo",
+  "locale": "ja-JP",
+  "languages": [
+    "ja-JP",
+    "ja",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Tokyo",
+      "lat": 35.6762,
+      "lon": 139.6503
+    },
+    {
+      "name": "Osaka",
+      "lat": 34.6937,
+      "lon": 135.5023
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome-ja"
+}

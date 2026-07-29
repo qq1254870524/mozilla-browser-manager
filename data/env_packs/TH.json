@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Asia/Bangkok",
+  "locale": "th-TH",
+  "languages": [
+    "th-TH",
+    "th",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Bangkok",
+      "lat": 13.7563,
+      "lon": 100.5018
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

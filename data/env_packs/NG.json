@@ -1,0 +1,20 @@
+{
+  "timezone_id": "Africa/Lagos",
+  "locale": "en-NG",
+  "languages": [
+    "en-NG",
+    "en"
+  ],
+  "cities": [
+    {
+      "name": "Lagos",
+      "lat": 6.5244,
+      "lon": 3.3792
+    }
+  ],
+  "viewport": [
+    1366,
+    768
+  ],
+  "fingerprint": "win11-chrome"
+}

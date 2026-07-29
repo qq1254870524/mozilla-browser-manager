@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Europe/Bratislava",
+  "locale": "sk-SK",
+  "languages": [
+    "sk-SK",
+    "sk",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Bratislava",
+      "lat": 48.1486,
+      "lon": 17.1077
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

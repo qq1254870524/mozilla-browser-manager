@@ -1,0 +1,29 @@
+{
+  "template_id": "win11-chrome-zh",
+  "platform": "Win32",
+  "oscpu": "Windows NT 10.0; Win64; x64",
+  "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+  "vendor": "Google Inc.",
+  "vendor_webgl": "Google Inc. (NVIDIA)",
+  "renderer": "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)",
+  "fonts": [
+    "Arial",
+    "Calibri",
+    "Consolas",
+    "Courier New",
+    "Georgia",
+    "Microsoft YaHei",
+    "Microsoft JhengHei",
+    "SimSun",
+    "SimHei",
+    "Noto Sans SC",
+    "Segoe UI",
+    "Tahoma",
+    "Times New Roman",
+    "Verdana"
+  ],
+  "hardware_concurrency": 12,
+  "device_memory": 16.0,
+  "max_touch_points": 0,
+  "color_depth": 24
+}

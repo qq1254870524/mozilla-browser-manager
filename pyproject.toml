@@ -1,0 +1,33 @@
+[project]
+name = "mozilla-browser-manager"
+version = "1.10.1"
+description = "Portable multi-engine browser manager (Camoufox / Playwright / Patchright) — Windows + Ubuntu"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "local" }]
+dependencies = [
+  "playwright>=1.48.0,<2",
+  "patchright>=1.55.0",
+  "camoufox[geoip]>=0.4.0",
+  "pydantic>=2.8",
+  "httpx[socks]>=0.27",
+  "pyyaml>=6.0",
+  "rich>=13.7",
+  "typer>=0.12",
+]
+
+[project.scripts]
+mozilla-mgr = "mozilla_manager.cli:app"
+mozilla-client = "mozilla_manager.client.app:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["app"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

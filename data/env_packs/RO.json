@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Europe/Bucharest",
+  "locale": "ro-RO",
+  "languages": [
+    "ro-RO",
+    "ro",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Bucharest",
+      "lat": 44.4268,
+      "lon": 26.1025
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

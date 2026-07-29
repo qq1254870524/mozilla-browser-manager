@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Asia/Singapore",
+  "locale": "en-SG",
+  "languages": [
+    "en-SG",
+    "en",
+    "zh-CN"
+  ],
+  "cities": [
+    {
+      "name": "Singapore",
+      "lat": 1.3521,
+      "lon": 103.8198
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

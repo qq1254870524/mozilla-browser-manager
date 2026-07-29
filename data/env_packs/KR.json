@@ -1,0 +1,21 @@
+{
+  "timezone_id": "Asia/Seoul",
+  "locale": "ko-KR",
+  "languages": [
+    "ko-KR",
+    "ko",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Seoul",
+      "lat": 37.5665,
+      "lon": 126.978
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}

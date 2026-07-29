@@ -1,0 +1,22 @@
+{
+  "timezone_id": "Asia/Beirut",
+  "locale": "ar-LB",
+  "languages": [
+    "ar-LB",
+    "ar",
+    "fr-LB",
+    "en-US"
+  ],
+  "cities": [
+    {
+      "name": "Beirut",
+      "lat": 33.8938,
+      "lon": 35.5018
+    }
+  ],
+  "viewport": [
+    1920,
+    1080
+  ],
+  "fingerprint": "win11-chrome"
+}
