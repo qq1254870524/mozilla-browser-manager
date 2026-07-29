@@ -61,6 +61,7 @@ class LaunchIn(BaseModel):
     open_check: bool = False
     skip_preflight: bool = False
     require_proxy: bool = False
+    start_mihomo: bool = True  # mihomo mode profiles always need core; default on
 
 
 class SubImportIn(BaseModel):

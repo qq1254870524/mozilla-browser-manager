@@ -1,5 +1,23 @@
 ## 1.10.10-v10.10 — 2026-07-30
 
+## 1.10.10+hotfix (2026-07-30)
+
+### 实测
+- Windows 全矩阵 + FreeTaxUSA 真人注册流程：打开 → Create new account → 填表 → 提交 → 多标签，**mixed-port 0 掉线**，页内 fetch httpbin 仍通（出口 `203.10.99.34`）
+- 真实客户端启动 + HTTP API 全绿（163 openapi paths）；经客户端 create/launch/stop/delete 通过
+- 关窗/stop 后无僵尸 chrome；netwatch 21/21 up
+
+### 修复
+- 客户端 `ServerRuntime.start()`：端口就绪后必须 `/api/health` 200 才算启动成功（避免竞态/假 404）
+- 客户端强制 `NO_PROXY=127.0.0.1,localhost`，健康检查走直连 `ProxyHandler({})`
+- `LaunchIn` 增加 `start_mihomo=True`（API 启动与模块默认对齐）
+- ops dashboard 版本号对齐 `1.10.10-v10.10`
+
+### 使用提醒
+- 只在 `C:\Users\zhang\Desktop\Mozilla` 双击 bat，不要从 `\\wsl.localhost\...` 运行
+- 开发只改 `/home/baoge/Mozilla`，再同步到桌面测试
+
+
 ### 修复
 - **关窗仍显示运行中**：Windows 按 user-data-dir 扫描 chrome 进程；关窗后 2 次确认即收尾；强制 taskkill 残留；更新面板状态
 - **下载依赖.bat**：校验 scripts 齐全；结束必定 pause；缺 Python 明确提示；异常也会暂停

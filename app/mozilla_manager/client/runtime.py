@@ -53,6 +53,9 @@ class ServerRuntime:
         os.environ.setdefault("PLAYWRIGHT_BROWSERS_PATH", str(BROWSERS_DIR))
         os.environ.setdefault("XDG_CACHE_HOME", str(ROOT / "runtime" / "cache"))
         os.environ.setdefault("MOZILLA_MANAGER_ROOT", str(ROOT))
+        # Never route local API via system/user HTTP proxy
+        os.environ["NO_PROXY"] = "127.0.0.1,localhost," + os.environ.get("NO_PROXY", "")
+        os.environ["no_proxy"] = os.environ["NO_PROXY"]
 
     def start(self, *, block_ready: bool = True) -> dict[str, Any]:
         if self.ready or self.is_port_open():
@@ -96,7 +99,17 @@ class ServerRuntime:
             if self._error:
                 return {"ok": False, "error": self._error, "url": self.url}
             if self.is_port_open():
-                return {"ok": True, "url": self.url, "reused": False, "owned": True}
+                # Prefer real /api/health — bare port-open can race a dying previous process
+                # or hit before routes are bound, which looked like mass 404s in matrix tests.
+                try:
+                    import urllib.request
+                    req = urllib.request.Request(self.url + "api/health")
+                    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+                    with opener.open(req, timeout=1.0) as r:
+                        if r.status == 200:
+                            return {"ok": True, "url": self.url, "reused": False, "owned": True}
+                except Exception:
+                    pass
             time.sleep(0.1)
         return {"ok": False, "error": "server start timeout", "url": self.url}
 
@@ -106,7 +119,8 @@ class ServerRuntime:
         deadline = time.time() + timeout
         while time.time() < deadline:
             try:
-                with urllib.request.urlopen(self.url + "api/health", timeout=1.0) as r:
+                opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+                with opener.open(self.url + "api/health", timeout=1.0) as r:
                     if r.status == 200:
                         return True
             except Exception:

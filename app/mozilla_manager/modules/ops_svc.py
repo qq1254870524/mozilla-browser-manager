@@ -84,7 +84,7 @@ def dashboard() -> dict[str, Any]:
         pass
     return {
         "ok": True,
-        "version": "1.10.2-v10.2",
+        "version": "1.10.10-v10.10",
         "profiles": len(profiles),
         "running": running,
         "need_relogin": need_relogin,
