@@ -138,7 +138,75 @@ def mihomo_binary() -> Path:
     return MIHOMO_DIR / name
 
 
-def mihomo_data_dir(port: int | None = None) -> Path:
+def _geodata_min_size(name: str) -> int:
+    """Reject stub/partial downloads that mihomo later flags as 'MMDB invalid'."""
+    n = (name or "").lower()
+    if "geoip" in n or n.endswith(".mmdb") or n.endswith(".metadb"):
+        return 1_000_000  # real MaxMind-ish DBs are multi-MB
+    if "geosite" in n or "geo" in n:
+        return 100_000
+    return 1000
+
+
+def _is_good_geodata(path: Path, name: str | None = None) -> bool:
+    try:
+        if not path.is_file():
+            return False
+        return path.stat().st_size >= _geodata_min_size(name or path.name)
+    except Exception:
+        return False
+
+
+def _seed_geodata_into(dest_dir: Path, *, force: bool = False) -> list[str]:
+    """Copy known-good geodata into dest_dir. force=True overwrites weak/corrupt files."""
+    import shutil
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    names = ("geoip.metadb", "GeoSite.dat", "geoip.dat", "geosite.dat", "Country.mmdb")
+    src_dirs = [
+        MIHOMO_DIR,
+        safe_resolve(MIHOMO_DIR / "data"),
+        Path.home() / ".config" / "mihomo",
+        Path("/home/baoge/.config/mihomo"),
+    ]
+    copied: list[str] = []
+    for n in names:
+        dest = dest_dir / n
+        if not force and _is_good_geodata(dest, n):
+            continue
+        best: Path | None = None
+        best_sz = 0
+        for sd in src_dirs:
+            try:
+                cand = sd / n
+                if cand.resolve() == dest.resolve():
+                    continue
+            except Exception:
+                cand = sd / n
+            if _is_good_geodata(cand, n):
+                try:
+                    sz = cand.stat().st_size
+                except Exception:
+                    continue
+                if sz > best_sz:
+                    best, best_sz = cand, sz
+        if best is None:
+            continue
+        try:
+            # remove weak/partial first so Windows does not keep a locked stub
+            if dest.exists():
+                try:
+                    dest.unlink()
+                except Exception:
+                    pass
+            shutil.copy2(best, dest)
+            if _is_good_geodata(dest, n):
+                copied.append(str(dest))
+        except Exception:
+            pass
+    return copied
+
+
+def mihomo_data_dir(port: int | None = None, *, force_seed: bool = False) -> Path:
     """Working dir for mihomo -d (geodata/cache). Never touch user HOME.
 
     Use per-port subdir when port given so concurrent profiles do not lock one cache.db.
@@ -146,74 +214,49 @@ def mihomo_data_dir(port: int | None = None) -> Path:
     ensure_layout()
     base = safe_resolve(MIHOMO_DIR / "data")
     base.mkdir(parents=True, exist_ok=True)
+    # always keep base seeded
+    try:
+        _seed_geodata_into(base, force=force_seed)
+        _seed_geodata_into(MIHOMO_DIR, force=False)
+    except Exception:
+        pass
     if port is None:
         return base
     d = safe_resolve(base / f"p{int(port)}")
     d.mkdir(parents=True, exist_ok=True)
-    # seed geodata into per-port dir (copy small refs from base/runtime)
-    for n in ("geoip.metadb", "GeoSite.dat", "geoip.dat", "geosite.dat"):
-        dest = d / n
-        if dest.exists() and dest.stat().st_size > 1000:
-            continue
-        for src_dir in (base, MIHOMO_DIR):
-            src = src_dir / n
-            if src.exists() and src.stat().st_size > 1000:
-                try:
-                    import shutil
-                    shutil.copy2(src, dest)
-                except Exception:
-                    pass
-                break
+    try:
+        _seed_geodata_into(d, force=force_seed)
+    except Exception:
+        pass
     return d
 
 
-def ensure_mihomo_geodata() -> dict[str, Any]:
+def ensure_mihomo_geodata(*, force: bool = False) -> dict[str, Any]:
     """Seed geoip/geosite into runtime so mihomo never blocks on first download.
 
-    Windows bug: fresh Desktop copy had no MMDB → mihomo logged
-    "Can't find MMDB, start download" and mixed-port never listened within
-    start timeout → browser launch failed entirely.
+    Windows bug: fresh Desktop copy had no/partial MMDB → mihomo logged
+    "Can't find MMDB, start download" / "MMDB invalid" and mixed-port never
+    listened within start timeout → browser looks completely offline.
     """
     ensure_layout()
-    ddir = mihomo_data_dir()
-    # also keep copies next to binary (some builds look at cwd)
-    targets = [ddir, MIHOMO_DIR]
-    names = ("geoip.metadb", "GeoSite.dat", "geoip.dat", "geosite.dat")
-    sources: list[Path] = []
-    # 1) already in runtime
-    for n in names:
-        p1 = MIHOMO_DIR / n
-        if p1.exists() and p1.stat().st_size > 1000:
-            sources.append(p1)
-    # 2) Linux/dev cache
-    home_cfg = Path.home() / ".config" / "mihomo"
-    for n in names:
-        p1 = home_cfg / n
-        if p1.exists() and p1.stat().st_size > 1000:
-            sources.append(p1)
-    # 3) CC2 lab cache if present
-    for n in names:
-        p1 = Path("/home/baoge/.config/mihomo") / n
-        if p1.exists() and p1.stat().st_size > 1000:
-            sources.append(p1)
+    ddir = mihomo_data_dir(force_seed=force)
     copied: list[str] = []
-    for src in sources:
-        for td in targets:
-            dest = td / src.name
-            try:
-                if dest.exists() and dest.stat().st_size > 1000:
-                    continue
-                import shutil
-                shutil.copy2(src, dest)
-                copied.append(str(dest))
-            except Exception:
-                pass
-    # minimal stub geoip.metadb is NOT enough; if still missing, disable is config-side
+    try:
+        copied.extend(_seed_geodata_into(ddir, force=force))
+        copied.extend(_seed_geodata_into(MIHOMO_DIR, force=force))
+    except Exception:
+        pass
     present = {
-        n: any((t / n).exists() and (t / n).stat().st_size > 1000 for t in targets)
+        n: _is_good_geodata(ddir / n, n) or _is_good_geodata(MIHOMO_DIR / n, n)
         for n in ("geoip.metadb", "GeoSite.dat")
     }
-    return {"ok": True, "dir": str(ddir), "present": present, "copied": copied[:8]}
+    return {
+        "ok": bool(present.get("geoip.metadb") or present.get("GeoSite.dat") or True),
+        "dir": str(ddir),
+        "present": present,
+        "copied": copied[:12],
+        "forced": bool(force),
+    }
 
 
 def _port_free(port: int, host: str = "127.0.0.1") -> bool:
@@ -261,9 +304,13 @@ def allocate_port(profile_id: str, base: int = 17800) -> int:
     h = sum(ord(c) for c in (profile_id or "x"))
     preferred = base + (h % 200)
     candidates = [preferred] + [base + ((h + i) % 200) for i in range(1, 200)]
+    # Reserve Web/Client API port and its controller/dns neighbors
+    reserved = {17888, 18888, 19888}
     # also avoid external-controller (+1000) and dns (+2000) collisions roughly
     for port in candidates:
         if port < 1024 or port > 60000:
+            continue
+        if int(port) in reserved or int(port + 1000) in reserved or int(port - 1000) in reserved:
             continue
         # mixed + controller + dns must be free-ish
         if not _port_free(port):
@@ -629,8 +676,8 @@ def start_mihomo(port: int, subscription_name: str = "default", node_name: str |
         pass
     pid_file = safe_resolve(NODES_DIR / f"mihomo-{port}.pid")
     pid_file.write_text(str(proc.pid), encoding="utf-8")
-    # Up to ~6s for first connect attempt, then extra listen poll (~8s) — Windows AV can slow bind.
-    for _ in range(20):
+    # Up to ~9s for first connect attempt, then extra listen poll — Windows AV / geodata can slow bind.
+    for _ in range(30):
         time.sleep(0.3)
         if proc.poll() is not None:
             break
@@ -655,7 +702,7 @@ def start_mihomo(port: int, subscription_name: str = "default", node_name: str |
             err = "process exited immediately; see log"
     else:
         # CRITICAL: process can be alive while Mixed-port failed ("address already in use").
-        for _ in range(25):
+        for _ in range(40):
             if _port_listening(port):
                 mixed_up = True
                 break
@@ -664,7 +711,7 @@ def start_mihomo(port: int, subscription_name: str = "default", node_name: str |
             time.sleep(0.25)
         if not mixed_up:
             try:
-                tail = log.read_text(encoding="utf-8", errors="ignore")[-1200:]
+                tail = log.read_text(encoding="utf-8", errors="ignore")[-2000:]
             except Exception:
                 tail = ""
             err = (
@@ -677,6 +724,32 @@ def start_mihomo(port: int, subscription_name: str = "default", node_name: str |
             except Exception:
                 pass
             alive = False
+            # Auto-heal: MMDB missing/invalid blocks mixed-port for minutes on Windows.
+            low = (tail or "").lower()
+            if (
+                ("can't find mmdb" in low)
+                or ("cant find mmdb" in low)
+                or ("mmdb invalid" in low)
+                or ("start download" in low and "mmdb" in low)
+            ):
+                try:
+                    ensure_mihomo_geodata(force=True)
+                    mihomo_data_dir(port, force_seed=True)
+                except Exception:
+                    pass
+                # one synchronous retry without recursion flag explosion
+                if not getattr(start_mihomo, "_retrying", False):
+                    try:
+                        start_mihomo._retrying = True  # type: ignore[attr-defined]
+                        time.sleep(0.4)
+                        return start_mihomo(
+                            port,
+                            subscription_name=subscription_name,
+                            node_name=node_name,
+                            client_fingerprint=client_fingerprint,
+                        )
+                    finally:
+                        start_mihomo._retrying = False  # type: ignore[attr-defined]
     switched = {}
     if alive and mixed_up and node_name:
         # external-controller comes up slightly after mixed-port
@@ -685,6 +758,24 @@ def start_mihomo(port: int, subscription_name: str = "default", node_name: str |
             if switched.get("ok"):
                 break
             time.sleep(0.25)
+    # Warm HTTP CONNECT through mixed-port so first browser nav is not racing cold start
+    if alive and mixed_up:
+        try:
+            import urllib.request
+            proxy = f"http://127.0.0.1:{int(port)}"
+            opener = urllib.request.build_opener(
+                urllib.request.ProxyHandler({"http": proxy, "https": proxy})
+            )
+            # short warm; ignore failures (node may need a moment)
+            try:
+                opener.open("https://www.gstatic.com/generate_204", timeout=3)
+            except Exception:
+                try:
+                    opener.open("http://connectivitycheck.gstatic.com/generate_204", timeout=2)
+                except Exception:
+                    pass
+        except Exception:
+            pass
     return {
         "ok": bool(alive and mixed_up),
         "port": port,

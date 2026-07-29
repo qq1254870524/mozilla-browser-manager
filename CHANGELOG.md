@@ -1,3 +1,21 @@
+## 1.10.9-v10.9 — 2026-07-30
+
+### 修复
+- Windows 四个入口 bat：纯 ASCII + CRLF，避免 CMD 把 set PYTHONIOENCODING 拆成 HONIOENCODING 等碎片命令
+- mihomo geodata：拒绝残缺 MMDB；MMDB invalid / Can't find MMDB 时 force-seed 并自动重试
+- mixed-port：拉长 Windows 等待 + 启动后 warm，降低首屏假断网
+- Desktop 已同步 DEV 代码
+
+### Windows 实测 matrix3
+- mihomo OK；httpbin 出口 203.10.97.121
+- Chromium/patchright：example / api.ip.sb / freetaxusa 可打开
+- 压力导航后 mixed-port 仍存活
+
+### 使用
+1. 只用 C:\Users\zhang\Desktop\Mozilla 下 bat（禁止 \\wsl.localhost 双击）
+2. 启动客户端.bat
+3. 异常请发 logs\mihomo-*.log
+
 # Changelog
 
 本项目版本号：`app/mozilla_manager` 的 `__version__` / API `version` / 客户端 `client.__version__`。

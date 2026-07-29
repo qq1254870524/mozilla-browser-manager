@@ -3,46 +3,46 @@ chcp 65001 >nul
 set PYTHONIOENCODING=utf-8
 set PYTHONUTF8=1
 setlocal EnableExtensions
-set "SCRIPT_DIR=%~dp0"
-echo %SCRIPT_DIR% | findstr /I /C:"wsl.localhost" /C:"\\wsl\\" >nul
-if not errorlevel 1 (
-  echo [] Ҫ WSL ·У
-  echo : C:\Users\zhang\Desktop\Mozilla
-  echo  WSL ִ: cd /home/baoge/Mozilla ^&^& bash scripts/export_to_windows.sh
+cd /d "%~dp0"
+if errorlevel 1 (
+  echo [ERROR] cannot cd to script dir
   pause
   exit /b 1
 )
-cd /d "%SCRIPT_DIR%" 2>nul
-if errorlevel 1 (
-  echo [] ޷űĿ¼
+echo %CD% | findstr /I /C:"wsl.localhost" /C:"\\wsl\\" >nul
+if not errorlevel 1 (
+  echo [ERROR] Do NOT run from WSL UNC path.
+  echo Use: C:\Users\zhang\Desktop\Mozilla
   pause
   exit /b 1
 )
 echo %CD% | findstr /I /C:"\Windows\System32" /C:"\Windows\SysWOW64" >nul
 if not errorlevel 1 (
-  echo [] ǰĿ¼ϵͳĿ¼ֹ
+  echo [ERROR] Refuse to run under System32. Copy project to Desktop first.
   pause
   exit /b 1
 )
 if not exist "app\mozilla_manager" (
-  echo []  Mozilla ĿĿ¼: %CD%
+  echo [ERROR] Not project root: %CD%
   pause
   exit /b 1
 )
-title Mozilla - ͻ
+title Mozilla - Client
 echo ============================================
-echo   ͻ
-echo   Ŀ¼: %CD%
+echo   Start Client
+echo   ROOT: %CD%
 echo ============================================
 echo.
 if exist ".venv\Scripts\python.exe" (
-  ".venv\Scripts\python.exe" "scripts\win_actions.py" client
+  ".venv\Scripts\python.exe" -u "scripts\win_actions.py" client
 ) else (
   where py >nul 2>nul
   if not errorlevel 1 (
-    py -3 "scripts\win_actions.py" client
+    py -3 -u "scripts\win_actions.py" client
   ) else (
-    python "scripts\win_actions.py" client
+    python -u "scripts\win_actions.py" client
   )
 )
-exit /b %ERRORLEVEL%
+set EC=%ERRORLEVEL%
+if not "%EC%"=="0" pause
+exit /b %EC%

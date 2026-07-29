@@ -1,45 +1,48 @@
 @echo off
+chcp 65001 >nul
+set PYTHONIOENCODING=utf-8
+set PYTHONUTF8=1
 setlocal EnableExtensions
-set "SCRIPT_DIR=%~dp0"
-echo %SCRIPT_DIR% | findstr /I /C:"wsl.localhost" /C:"\\wsl\\" >nul
-if not errorlevel 1 (
-  echo [错误] 不要从 WSL 网络路径运行！
-  echo 请打开: C:\Users\zhang\Desktop\Mozilla
-  echo 先在 WSL 执行: cd /home/baoge/Mozilla ^&^& bash scripts/export_to_windows.sh
+cd /d "%~dp0"
+if errorlevel 1 (
+  echo [ERROR] cannot cd to script dir
   pause
   exit /b 1
 )
-cd /d "%SCRIPT_DIR%" 2>nul
-if errorlevel 1 (
-  echo [错误] 无法进入脚本目录
+echo %CD% | findstr /I /C:"wsl.localhost" /C:"\\wsl\\" >nul
+if not errorlevel 1 (
+  echo [ERROR] Do NOT run from WSL UNC path.
+  echo Use: C:\Users\zhang\Desktop\Mozilla
   pause
   exit /b 1
 )
 echo %CD% | findstr /I /C:"\Windows\System32" /C:"\Windows\SysWOW64" >nul
 if not errorlevel 1 (
-  echo [错误] 当前目录是系统目录，已中止
+  echo [ERROR] Refuse to run under System32. Copy project to Desktop first.
   pause
   exit /b 1
 )
 if not exist "app\mozilla_manager" (
-  echo [错误] 不是 Mozilla 项目目录: %CD%
+  echo [ERROR] Not project root: %CD%
   pause
   exit /b 1
 )
-title Mozilla - 停止WEB
+title Mozilla - Stop WEB
 echo ============================================
-echo   停止WEB
-echo   目录: %CD%
+echo   Stop WEB
+echo   ROOT: %CD%
 echo ============================================
 echo.
 if exist ".venv\Scripts\python.exe" (
-  ".venv\Scripts\python.exe" "scripts\win_actions.py" stop
+  ".venv\Scripts\python.exe" -u "scripts\win_actions.py" stop
 ) else (
   where py >nul 2>nul
   if not errorlevel 1 (
-    py -3 "scripts\win_actions.py" stop
+    py -3 -u "scripts\win_actions.py" stop
   ) else (
-    python "scripts\win_actions.py" stop
+    python -u "scripts\win_actions.py" stop
   )
 )
-exit /b %ERRORLEVEL%
+set EC=%ERRORLEVEL%
+if not "%EC%"=="0" pause
+exit /b %EC%

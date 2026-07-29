@@ -1,45 +1,26 @@
-﻿Mozilla 浏览器管理器 — 使用说明
-================================
+Mozilla Browser Manager — Windows 使用说明
+============================================
+版本: 1.10.9-v10.9
 
-开发目录（只改代码，不要双击运行）:
-  \\wsl.localhost\Ubuntu\home\baoge\Mozilla
-
-Windows 使用目录（只在这里双击）:
+【唯一运行目录】
   C:\Users\zhang\Desktop\Mozilla
 
-【只有 4 个按钮】
+【禁止】
+  - 不要从 \\wsl.localhost\Ubuntu\home\baoge\Mozilla 双击 bat
+  - 不要在 System32 下运行
+  - 开发只在 Ubuntu: /home/baoge/Mozilla
 
-  1. 下载依赖.bat     首次必用
-        · Chromium（镜像+断点续传）
-        · Camoufox（镜像+断点续传）
-        · mihomo（镜像+断点续传）
-        · 中断后再次双击会自动续传，不必重头下
-  2. 启动客户端.bat   日常使用（关窗口=全部停止）【推荐】
-  3. 启动WEB.bat      http://127.0.0.1:17888
-  4. 停止WEB.bat      停止 WEB 以及相关后台
+【四个按钮】
+  1. 下载依赖.bat   — 首次或更新依赖
+  2. 启动客户端.bat — 桌面客户端（推荐）
+  3. 启动WEB.bat    — 浏览器打开管理台 http://127.0.0.1:17888
+  4. 停止WEB.bat    — 停止 WEB
 
-【正确流程】
-  第一次：下载依赖 → 启动客户端
-  以后：  启动客户端
-  网络中断：再点一次「下载依赖」即可续传
+【没网时排查】
+  1. 任务管理器结束 mihomo.exe / 残留 chrome
+  2. 确认订阅是「良心云」，节点已选
+  3. 看 logs\mihomo-端口.log 是否有 Mixed proxy listening
+  4. 再点一次「启动客户端」后启动环境
 
-【严禁】
-  不要从 \\wsl.localhost\... 路径双击
-  必须打开桌面上的 Mozilla 文件夹再点
-
-【从 WSL 同步】
-  cd /home/baoge/Mozilla && bash scripts/export_to_windows.sh
-
-----
-v1.10.7 Windows启动修复（MMDB）
-v1.10.6 freetaxusa点Create account后断网修复（2026-07-30）
-v1.10.4 开网页后断网修复（2026-07-30）
-1) 禁止后台误杀 mihomo：运行时 watchdog 不再因一次 PID 误判就停代理
-2) Playwright 跨线程修复：标签自动保存 / CF 延迟检测 必须回到 BrowserWorker 线程
-3) CF 误判收紧：标题里裸 "cloudflare" 不再当挑战页（避免卡死 worker）
-4) 关闭 QUIC/HTTP3（--disable-quic），SOCKS 下更稳
-5) mihomo：redir-host + tcp-concurrent，减少假死
-
-重测步骤（桌面 C:\\Users\\zhang\\Desktop\\Mozilla）：
-  停止WEB.bat → 关客户端 → 启动客户端.bat → 启动环境 → 打开网页 → 再点几个链接
-若仍断网：看 logs\\mihomo-端口.log 是否大量 connect error/EOF（节点本身挂）
+【开发同步】
+  WSL: cd /home/baoge/Mozilla && bash scripts/export_to_windows.sh
